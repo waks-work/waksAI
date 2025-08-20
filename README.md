@@ -52,10 +52,10 @@ WaksAI is a full-stack AI chatbot system with a **Lua frontend** and **Rust back
 
 ### 1. Clone the repository
 
-```bash
+bash
 git clone https://github.com/yourusername/waksAI.git
 cd waksAI
-2. Build Rust backend
+### 2. Build Rust backend
 bash
 Copy
 Edit
@@ -63,7 +63,7 @@ cd rust/waks_ai_backend
 cargo build --release
 Binary will be at target/release/waks_ai_backend.
 
-3. Run WaksAI
+### 3. Run WaksAI
 Open two terminals:
 
 Terminal 1 – Run Rust backend:
