@@ -56,44 +56,48 @@ bash
 git clone https://github.com/yourusername/waksAI.git
 cd waksAI
 ### 2. Build Rust backend
-bash
+```bash
 Copy
 Edit
 cd rust/waks_ai_backend
 cargo build --release
+```
 Binary will be at target/release/waks_ai_backend.
 
 ### 3. Run WaksAI
 Open two terminals:
+---
 
 Terminal 1 – Run Rust backend:
 
-bash
+```bash
 Copy
 Edit
 cd rust/waks_ai_backend
 cargo run --release
+```
 Terminal 2 – Run Lua frontend:
 
-bash
+```bash
 Copy
 Edit
 cd lua
 lua waksAI/init.lua
+```
 UI will open, ready for chat.
 
 Input messages and press Enter to send.
 
-Usage
+### Usage
 Chat dynamically adjusts to screen size
 
-AI responses are real-time
+### AI responses are real-time
 
 Sessions are automatically managed
 
 Reset session with /reset
 
-Commands & Shortcuts
+### Commands & Shortcuts
 Command	Description
 /reset	Reset session and context
 /help	Show help message
@@ -101,9 +105,11 @@ Command	Description
 /status	Show backend connection status
 /model <name>	Switch AI model dynamically
 
+---
+
 # Development Notes
 ## Frontend
-
+```
 init.lua – Main entry point
 
 ui.lua – Chat interface & rendering
@@ -113,6 +119,8 @@ input.lua – User input handling
 state.lua – Session/context management
 
 api.lua – Communicates with backend
+```
+---
 
 ## Backend
 
@@ -122,12 +130,15 @@ Cargo.toml – Dependencies and Rust package
 
 Running in Debug Mode
 
-bash
+``` bash
 Copy
 Edit
-# Backend
+```
+## Backend
+```rust
 cargo run
-# Frontend
+```
+## Frontend
 lua waksAI/init.lua
 Modular design allows adding new commands, UI elements, and AI logic easily
 
@@ -154,10 +165,10 @@ WaksAI is released under the MIT License. See LICENSE file for details.
 
 ## Developed with ❤️ by the WaksAI Team
 
-yaml
+```yaml
 Copy
 Edit
-
+```
 ---
 
 This is **one single, fully integrated README.md** file. You don’t need separate files for structure, usage, commands, or development notes. Everything is in **one place**, ready to copy.  
