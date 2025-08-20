@@ -101,8 +101,8 @@ Command	Description
 /status	Show backend connection status
 /model <name>	Switch AI model dynamically
 
-Development Notes
-Frontend
+# Development Notes
+## Frontend
 
 init.lua – Main entry point
 
@@ -114,7 +114,7 @@ state.lua – Session/context management
 
 api.lua – Communicates with backend
 
-Backend
+## Backend
 
 main.rs – AI logic & server
 
@@ -131,14 +131,14 @@ cargo run
 lua waksAI/init.lua
 Modular design allows adding new commands, UI elements, and AI logic easily
 
-Extending AI Models
+# Extending AI Models
 Add new models in backend Rust logic
 
-Update API functions in api.lua
+# Update API functions in api.lua
 
 Use /model <name> to switch dynamically
 
-Contributing
+# Contributing
 Fork the repository
 
 Create a feature branch: git checkout -b feature-name
@@ -149,10 +149,10 @@ Push branch: git push origin feature-name
 
 Open a pull request
 
-License
+# License
 WaksAI is released under the MIT License. See LICENSE file for details.
 
-Developed with ❤️ by the WaksAI Team
+## Developed with ❤️ by the WaksAI Team
 
 yaml
 Copy
