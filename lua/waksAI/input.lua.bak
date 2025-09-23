@@ -22,7 +22,7 @@ function M.floating_input(prompt, on_enter)
   vim.fn.prompt_setcallback(buf, function(input)
     if input and input ~= "" then
       -- Append to chat (single insertion)
-      ui.append_bubble("user", input)
+      ui.append_markdown("user", input)
       if on_enter then on_enter(input) end
     end
     if vim.api.nvim_win_is_valid(win) then vim.api.nvim_win_close(win, true) end

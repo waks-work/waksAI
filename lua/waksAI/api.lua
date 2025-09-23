@@ -1,79 +1,83 @@
-local M = {}
+local M        = {}
+local state    = require("waksAI.state")
+local util     = require("waksAI.utils")
+local ui       = require("waksAI.ui")
 
--- Base URL (DeepSeek / Ollama / OpenAI compatible)
--- 👉 Adjust if you swap models
-local base_url = "http://localhost:11434/v1/chat/completions"
-local model = "deepseek-coder:1.3b"
+-- Base endpoint (can swap Ollama/DeepSeek/OpenAI/etc.)
+local endpoint = state.config.endpoint
 
--- === SSE Streaming ===
-local function stream_request(prompt, on_chunk, on_complete)
-  vim.fn.jobstart(
-    {
-      "curl",
-      "-N", -- keep connection open
-      "-s",
-      "-X", "POST",
-      base_url,
-      "-H", "Content-Type: application/json",
-      "-d", vim.fn.json_encode({
-        model = model,
-        stream = true,
-        messages = {
-          { role = "user", content = prompt }
-        }
-      }),
-    },
-    {
-      stdout_buffered = false,
-      on_stdout = function(_, data, _)
-        for _, line in ipairs(data) do
-          if line ~= "" and line:sub(1, 5) == "data:" then
-            local ok, json = pcall(vim.fn.json_decode, line:sub(6))
-            if ok and json.choices and json.choices[1].delta
-              and json.choices[1].delta.content
-            then
-              on_chunk(json.choices[1].delta.content)
-            end
+-- Send full request (non-streaming)
+function M.send(prompt, on_done)
+  state.add("user", prompt)
+
+  -- Preprocess if needed
+  if state.config.comment_trim then
+    prompt = util.trim_comments(prompt)
+  end
+
+  local payload = vim.fn.json_encode({
+    session_id = "default",
+    model = state.current_model(),
+    messages = state.messages,
+    stream = false,
+  })
+
+  vim.fn.jobstart({
+    "curl", "-s",
+    "-X", "POST", endpoint,
+    "-H", "Content-Type: application/json",
+    "-d", payload,
+  }, {
+    stdout_buffered = true,
+    on_stdout = function(_, data)
+      local joined = table.concat(data, "")
+      if joined ~= "" then
+        local ok, resp = pcall(vim.fn.json_decode, joined)
+        if ok and resp and resp.response then
+          state.add("ai", resp.response)
+
+          -- Extract any code blocks
+          local blocks = util.extract_code_blocks(resp.response)
+
+          if on_done then
+            on_done(resp.response, blocks)
           end
         end
-      end,
-      on_exit = function()
-        if on_complete then on_complete() end
-      end,
-    }
-  )
-end
-
--- === Public API ===
-function M.ask(prompt)
-  -- Create a fresh buffer for the reply
-  local bufnr = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_option(bufnr, "bufhidden", "wipe")
-  vim.api.nvim_set_current_buf(bufnr)
-
-  local lines = {}
-  stream_request(
-    prompt,
-    function(chunk)
-      table.insert(lines, chunk)
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { table.concat(lines) })
+      end
     end,
-    function()
-      table.insert(lines, "\n--- [done] ---")
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { table.concat(lines) })
-    end
-  )
+  })
 end
 
--- === Command Mapping ===
-vim.api.nvim_create_user_command("WaksAIAsk", function(opts)
-  M.ask(opts.args)
-end, { nargs = "+" })
+-- Stream request (for typing effect)
+function M.stream(prompt, on_chunk, on_done)
+  state.add("user", prompt)
+
+  local payload = vim.fn.json_encode({
+    session_id = "default",
+    model = state.current_model(),
+    messages = state.messages,
+    stream = true,
+  })
+
+  vim.fn.jobstart({
+    "curl", "-N", "-s",
+    "-X", "POST", endpoint .. "/stream",
+    "-H", "Content-Type: application/json",
+    "-d", payload,
+  }, {
+    stdout_buffered = false,
+    on_stdout = function(_, data)
+      for _, chunk in ipairs(data) do
+        if chunk ~= "" then
+          state.add("ai", chunk)
+          if on_chunk then on_chunk(chunk) end
+        end
+      end
+    end,
+    on_exit = function()
+      if on_done then on_done() end
+    end,
+  })
+end
 
 return M
-
-
-
-
-
-
