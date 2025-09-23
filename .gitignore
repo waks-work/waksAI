@@ -1,0 +1,17 @@
+
+# Lua
+*.bak
+*.two
+
+# Rust
+/target
+Cargo.lock
+
+# Neovim swap/backup
+*.swp
+*.swo
+
+id_ed25519
+id_ed25519.pub
+
+
