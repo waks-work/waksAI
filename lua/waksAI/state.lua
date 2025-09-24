@@ -1,7 +1,7 @@
 local M = {}
 
 M.config = {
-  endpoint = "http://localhost:11434/api/generate",
+  endpoint = "http://localhost:11500/api/generate",
   model = "deepseek-coder:1.3b",
   models = { "deepseek-coder:1.3b", "stable-code:3b-code-q4_0" },
   max_context_turns = 12,   -- keep last N turns for prompt context

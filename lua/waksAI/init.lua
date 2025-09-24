@@ -34,14 +34,7 @@ end
 -- Visual selection helper
 function M.explain_visual()
   ui.open_chat()
-  local _, ls, cs = unpack(vim.fn.getpos("'<"))
-  local _, le, ce = unpack(vim.fn.getpos("'>"))
-  local lines = vim.fn.getline(ls, le)
-  if #lines == 0 then return end
-  lines[#lines] = string.sub(lines[#lines], 1, ce)
-  lines[1] = string.sub(lines[1], cs)
-  local code = table.concat(lines, "\n")
-  local prompt = "Explain this code:\n" .. code
+  local prompt = "Explain the selected code and suggest improvements."
   ui.render_user(prompt)
 
   api.send(prompt, function(ai_text, code_blocks)
