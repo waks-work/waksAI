@@ -55,36 +55,41 @@ WaksAI is a full-stack AI chatbot system with a **Lua frontend** and **Rust back
 ```bash
 git clone https://github.com/yourusername/waksAI.git
 cd waksAI
-2. Build Rust backend
-bash
-Copy
-Edit
+```
+
+### 2. Build Rust backend
+```bash
 cd rust/waks_ai_backend
 cargo build --release
+
+```
+
 Binary will be at target/release/waks_ai_backend.
 
-3. Run WaksAI
+### 3. Run WaksAI
 Open two terminals:
 
-Terminal 1 – Run Rust backend:
+#### Terminal 1 – Run Rust backend:
 
-bash
-Copy
-Edit
+```bash
 cd rust/waks_ai_backend
 cargo run --release
-Terminal 2 – Run Lua frontend:
 
-bash
-Copy
-Edit
+```
+
+#### Terminal 2 – Run Lua frontend:
+
+```bash
 cd lua
 lua waksAI/init.lua
+
+```
+
 UI will open, ready for chat.
 
 Input messages and press Enter to send.
 
-Usage
+#### Usage
 Chat dynamically adjusts to screen size
 
 AI responses are real-time
@@ -93,6 +98,7 @@ Sessions are automatically managed
 
 Reset session with /reset
 
+```bash
 Commands & Shortcuts
 Command	Description
 /reset	Reset session and context
@@ -101,44 +107,43 @@ Command	Description
 /status	Show backend connection status
 /model <name>	Switch AI model dynamically
 
+```
+
 Development Notes
-Frontend
+### Frontend
 
-init.lua – Main entry point
+ - init.lua – Main entry point
+ - ui.lua – Chat interface & rendering
+ - input.lua – User input handling
+ - state.lua – Session/context management
+ - api.lua – Communicates with backend
 
-ui.lua – Chat interface & rendering
+### Backend
 
-input.lua – User input handling
+ -> main.rs – AI logic & server
 
-state.lua – Session/context management
+ -> Cargo.toml – Dependencies and Rust package
 
-api.lua – Communicates with backend
+ -> Running in Debug Mode
 
-Backend
-
-main.rs – AI logic & server
-
-Cargo.toml – Dependencies and Rust package
-
-Running in Debug Mode
-
-bash
-Copy
-Edit
+```bash
 # Backend
 cargo run
 # Frontend
 lua waksAI/init.lua
+
+```
+
 Modular design allows adding new commands, UI elements, and AI logic easily
 
-Extending AI Models
+## Extending AI Models
 Add new models in backend Rust logic
 
 Update API functions in api.lua
 
 Use /model <name> to switch dynamically
 
-Contributing
+## Contributing
 Fork the repository
 
 Create a feature branch: git checkout -b feature-name
@@ -149,15 +154,12 @@ Push branch: git push origin feature-name
 
 Open a pull request
 
-License
+## License
 WaksAI is released under the MIT License. See LICENSE file for details.
 
 Developed with ❤️ by the WaksAI Team
 
-yaml
-Copy
-Edit
-
+```yaml
 ---
 
 This is **one single, fully integrated README.md** file. You don’t need separate files for structure, usage, commands, or development notes. Everything is in **one place**, ready to copy.  
@@ -165,3 +167,6 @@ This is **one single, fully integrated README.md** file. You don’t need separa
 If you want, I can **also embed a small ASCII diagram** showing the **Frontend ↔ Backend ↔ AI flow** inside this README for extra clarity.  
 
 Do you want me to add that diagram?
+
+```
+
