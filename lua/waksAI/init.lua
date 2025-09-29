@@ -3,6 +3,7 @@ local M     = {}
 local ui    = require("waksAI.ui")
 local api   = require("waksAI.api")
 local state = require("waksAI.state")
+local utils = require("waksAI.utils")
 
 function M.setup(opts)
   state.setup(opts or {})
@@ -33,6 +34,7 @@ end
 
 -- Visual selection helper
 function M.explain_visual()
+   -- check if user has selected texted
   ui.open_chat()
   local prompt = "Explain the selected code and suggest improvements."
   ui.render_user(prompt)

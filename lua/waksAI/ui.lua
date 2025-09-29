@@ -37,6 +37,7 @@ local function append_markdown(lines)
 
   vim.bo[buf].modifiable = false
   vim.api.nvim_win_set_cursor(0, { vim.api.nvim_buf_line_count(buf), 0 })
+  vim.api.nvim_win_set_option(0, "wrap", true)
 end
 
 -- Public: render a user message

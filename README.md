@@ -117,6 +117,9 @@ Development Notes
  - input.lua – User input handling
  - state.lua – Session/context management
  - api.lua – Communicates with backend
+ - history.lua - Checks the history
+ - context.lua - Checks context of functions to include in prompt send 
+ - edit.lua - allows editting of code in the file 
 
 ### Backend
 
@@ -125,6 +128,8 @@ Development Notes
  -> Cargo.toml – Dependencies and Rust package
 
  -> Running in Debug Mode
+ 
+ -> We run models locally as of now and is ready for upgrade 
 
 ```bash
 # Backend

@@ -3,9 +3,9 @@ local M        = {}
 local state    = require("waksAI.state")
 local util     = require("waksAI.utils")
 local ui       = require("waksAI.ui")
-local context = require("waksAI.context")
-local history = require("waksAI.history")
-local edit = require("waksAI.edit")
+local context  = require("waksAI.context")
+local history  = require("waksAI.history")
+local edit     = require("waksAI.edit")
 
 -- Base endpoint (can swap Ollama/DeepSeek/OpenAI/etc.)
 local endpoint = state.config.endpoint
@@ -29,7 +29,7 @@ function M.send(prompt, on_done)
   if ctx.project and #ctx.project > 0 then
     table.insert(sys_parts, "Project snippets:")
     for _, s in ipairs(ctx.project) do
-      table.insert(sys_parts, string.format("- %s:%d -> %s", s.path, s.line, (s.excerpt or ""):sub(1,80)))
+      table.insert(sys_parts, string.format("- %s:%d -> %s", s.path, s.line, (s.excerpt or ""):sub(1, 80)))
     end
   end
 
@@ -43,7 +43,8 @@ function M.send(prompt, on_done)
     end
     -- Cap snippet length to avoid huge payloads (e.g., 3000 chars)
     if #snippet > 3000 then snippet = snippet:sub(1, 3000) .. "\n\n// ...trimmed..." end
-    table.insert(messages, { role = "system", content = "RELEVANT_SNIPPET_START\n" .. snippet .. "\nRELEVANT_SNIPPET_END" })
+    table.insert(messages,
+      { role = "system", content = "RELEVANT_SNIPPET_START\n" .. snippet .. "\nRELEVANT_SNIPPET_END" })
   end
 
   -- Add the user prompt itself
@@ -75,11 +76,16 @@ function M.send(prompt, on_done)
           local ai_text = resp.response
           state.add("ai", ai_text)
 
+          -- wrap lines
+          local win_width = vim.api.nvim_win_get_width(0)
+          local wrapped = util.wrap(ai_text, win_width)
+          local wrapped_text = table.concat(wrapped, "\n")
+
           -- try to extract code blocks
           local blocks = util.extract_code_blocks(ai_text)
 
           -- render in UI
-          if on_done then on_done(ai_text, blocks) end
+          if on_done then on_done(wrapped_text, blocks) end
 
           -- If the response contains a full-file replacement or diff marker, we can handle it:
           -- Basic heuristic: if response contains "### PATCH" or unified diff markers, offer apply
@@ -125,9 +131,10 @@ function M.stream(prompt, on_chunk, on_done)
     stream = true,
   })
 
+  local stream_endpoint = "http://localhost:11500/stream"
   vim.fn.jobstart({
     "curl", "-N", "-s",
-    "-X", "POST", endpoint .. "/stream",
+    "-X", "POST", stream_endpoint,
     "-H", "Content-Type: application/json",
     "-d", payload,
   }, {
