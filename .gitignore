@@ -5,7 +5,7 @@
 
 # Rust
 rust/waks_ai_backend/target
-Cargo.lock
+rust/waks_ai_backend/Cargo.lock
 
 # Neovim swap/backup
 *.swp
