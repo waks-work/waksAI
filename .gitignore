@@ -1,0 +1,16 @@
+
+# Lua
+*.bak
+*.two
+
+# Rust
+rust/waks_ai_backend/target
+rust/waks_ai_backend/Cargo.lock
+
+# Neovim swap/backup
+*.swp
+*.swo
+
+id_ed25519
+id_ed25519.pub
+
