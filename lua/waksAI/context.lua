@@ -91,7 +91,8 @@ function M.get_project_snippets(query, max_results)
 
   -- sanitize basic single quote by escaping
   local safe_q = query:gsub("'", "'\\''")
-  local cmd = string.format("rg --no-heading --line-number -S -n -g '!.git' -g '!node_modules' -e '%s' -m %d", safe_q, max_results)
+  local cmd = string.format("rg --no-heading --line-number -S -n -g '!.git' -g '!node_modules' -e '%s' -m %d", safe_q,
+    max_results)
   local handle = io.popen(cmd)
   if not handle then return snippets end
   local out = handle:read("*a")
@@ -132,7 +133,8 @@ function M.build_request_context(user_prompt)
 
   -- fallback: send the current buffer around cursor (20 lines window)
   local row = meta.line
-  local buflines = vim.api.nvim_buf_get_lines(0, math.max(0, row - 11), math.min(vim.api.nvim_buf_line_count(0), row + 10), false)
+  local buflines = vim.api.nvim_buf_get_lines(0, math.max(0, row - 11),
+    math.min(vim.api.nvim_buf_line_count(0), row + 10), false)
   ctx.kind = "window"
   ctx.snippet = table.concat(buflines, "\n")
 
