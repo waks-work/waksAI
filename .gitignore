@@ -11,6 +11,7 @@ rust/waks_ai_backend/Cargo.lock
 *.swp
 *.swo
 
+assets/
 id_ed25519
 id_ed25519.pub
 
