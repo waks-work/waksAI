@@ -1,25 +1,36 @@
 use axum::{routing::post, Router};
 use tracing::info;
 
-#[warn(unused_import)]
-use crate::ai::provider::Message;
-
-use crate::ai::{
-    generator::{generate, stream_generate},
-    registry::provider_registry,
-    state::AppState,
+use crate::{
+    ai::{
+        generator::{generate, stream_generate},
+        registry::provider_registry,
+        state::AppState,
+    },
+    communication,
+    storage::{self, db, state::StrongHandle},
 };
+
 use reqwest::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub async fn run_server() {
+    let strong_handle = StrongHandle::new();
+    // if let Err(e) = db::init().await {
+    //  eprintln!("Failed to initialize DB: {}", e);
+    // return;
+    // }
     let state = AppState {
         sessions: Arc::new(Mutex::new(HashMap::new())),
         client: Client::new(),
         registry: Arc::new(provider_registry()),
     };
+
+    communication::init(state.clone().into(), strong_handle.clone())
+        .await
+        .unwrap();
 
     let app = Router::new()
         .route("/generate", post(generate))

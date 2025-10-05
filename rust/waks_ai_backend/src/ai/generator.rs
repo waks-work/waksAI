@@ -11,10 +11,62 @@ use std::convert::Infallible;
 
 use crate::ai::provider::{GenerateReq, GenerateResp, Message};
 use crate::ai::state::AppState;
-#[warn(unused_import)]
-use crate::ai::stream::StreamType;
 
 use tracing::info;
+
+pub async fn generate_text(
+    state: AppState,
+    prompt: String,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    // Create internal GenerateReq
+    let req = GenerateReq {
+        provider: "default".to_string(),    // pick your default provider
+        model: "default-model".to_string(), // default model if needed
+        messages: vec![Message {
+            role: "user".to_string(),
+            content: prompt,
+        }],
+        stream: false,
+        api_key: None,
+        session_id: Some("internal".to_string()),
+    };
+
+    // Setup session memory
+    if let Some(session_id) = &req.session_id {
+        let mut sessions_lock = state.sessions.lock().await;
+        sessions_lock
+            .entry(session_id.clone())
+            .or_default()
+            .extend(req.messages.clone());
+    }
+
+    // Get provider config
+    let provider_config = state
+        .registry
+        .get(req.provider.as_str())
+        .ok_or("Unsupported provider")?;
+
+    // Build request
+    let (url, headers, _body) = (provider_config.build_request)(&req)
+        .map_err(|(status, msg)| format!("Request build error: {} {:?}", status, msg))?;
+
+    // Send request
+    let mut builder = state.client.post(&url);
+    for (k, v) in headers {
+        builder = builder.header(&k, &v);
+    }
+
+    let resp = builder.send().await?;
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("Request failed: {}", text).into());
+    }
+
+    let text = resp.text().await?;
+    let parsed = (provider_config.parse_response)(&text)
+        .map_err(|(status, msg)| format!("Parse error: {} {:?}", status, msg))?;
+    Ok(parsed)
+}
 
 async fn setup_request(
     sessions: &std::sync::Arc<tokio::sync::Mutex<std::collections::HashMap<String, Vec<Message>>>>,

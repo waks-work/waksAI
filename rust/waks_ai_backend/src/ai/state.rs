@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use crate::ai::generator;
 use crate::ai::provider::Message;
 use crate::ai::registry::ProviderConfig;
 
@@ -11,4 +12,13 @@ pub struct AppState {
     pub sessions: Arc<Mutex<HashMap<String, Vec<Message>>>>,
     pub client: Client,
     pub registry: Arc<HashMap<&'static str, ProviderConfig>>,
+}
+
+impl AppState {
+    pub async fn run(
+        &self,
+        prompt: String,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        generator::generate_text(self.clone(), prompt).await
+    }
 }

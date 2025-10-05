@@ -26,7 +26,6 @@ pub struct GenerateResp {
     pub response: String,
 }
 
-#[warn(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct OllamaGenerateResponse {
     pub response: String,

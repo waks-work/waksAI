@@ -1,4 +1,7 @@
 mod ai;
+mod communication;
+mod storage;
+mod types;
 
 #[tokio::main]
 async fn main() {
