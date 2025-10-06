@@ -11,7 +11,10 @@ rust/waks_ai_backend/Cargo.lock
 *.swp
 *.swo
 
+<<<<<<< HEAD
 assets/
+=======
+>>>>>>> c7277b6daca621643918d9cab9510edec67d0fce
 id_ed25519
 id_ed25519.pub
 
