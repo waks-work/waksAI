@@ -17,20 +17,22 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub async fn run_server() {
+    if let Err(e) = db::init().await {
+        eprintln!("DB init failed: {e}");
+        return; // exit early, don’t run the server if DB isn’t ready
+    }
+
     let strong_handle = StrongHandle::new();
-    // if let Err(e) = db::init().await {
-    //  eprintln!("Failed to initialize DB: {}", e);
-    // return;
-    // }
     let state = AppState {
         sessions: Arc::new(Mutex::new(HashMap::new())),
         client: Client::new(),
         registry: Arc::new(provider_registry()),
     };
 
-    communication::init(state.clone().into(), strong_handle.clone())
-        .await
-        .unwrap();
+    if let Err(e) = communication::init(state.clone().into(), strong_handle.clone()).await {
+        eprintln!("Communication init failed: {e}");
+        return;
+    }
 
     let app = Router::new()
         .route("/generate", post(generate))
@@ -41,5 +43,7 @@ pub async fn run_server() {
     info!("waksAI backend running on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    if let Err(e) = axum::serve(listener, app).await {
+        eprintln!("Server error: {e}");
+    }
 }
