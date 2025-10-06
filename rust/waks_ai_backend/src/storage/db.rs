@@ -10,10 +10,8 @@ pub async fn init() -> DbResult<()> {
     let dir = "storage_data";
     let db_path = format!("{}/storage.db", dir);
 
-    // Ensure directory exists
     tokio::fs::create_dir_all(dir).await?;
 
-    // Ensure file exists (touch equivalent)
     if !Path::new(&db_path).exists() {
         fs::File::create(&db_path)?;
         println!("🆕 Created new SQLite database file at {}", db_path);
@@ -21,13 +19,11 @@ pub async fn init() -> DbResult<()> {
         println!("🔄 Opened existing SQLite database at {}", db_path);
     }
 
-    // Connect (important: use `sqlite:` not `sqlite://`)
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect(&format!("sqlite:{}", db_path))
         .await?;
 
-    // Ensure the storage table exists
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS storage (
             key TEXT PRIMARY KEY,
@@ -45,12 +41,10 @@ pub async fn init() -> DbResult<()> {
     Ok(())
 }
 
-/// Internal helper to access the connection pool
 fn get_pool() -> &'static SqlitePool {
     POOL.get().expect("DB not initialized. Call init() first.")
 }
 
-/// Save or update a key-value pair
 pub async fn save(key: &str, value: &str) -> DbResult<()> {
     sqlx::query("INSERT OR REPLACE INTO storage (key, value) VALUES (?, ?)")
         .bind(key)
@@ -60,7 +54,7 @@ pub async fn save(key: &str, value: &str) -> DbResult<()> {
     Ok(())
 }
 
-/// Load a value by key
+/// by key
 pub async fn load(key: &str) -> DbResult<Option<String>> {
     let row: Option<(String,)> = sqlx::query_as("SELECT value FROM storage WHERE key = ?")
         .bind(key)

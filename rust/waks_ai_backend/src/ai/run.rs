@@ -19,7 +19,7 @@ use tokio::sync::Mutex;
 pub async fn run_server() {
     if let Err(e) = db::init().await {
         eprintln!("DB init failed: {e}");
-        return; // exit early, don’t run the server if DB isn’t ready
+        return;
     }
 
     let strong_handle = StrongHandle::new();
