@@ -5,6 +5,7 @@ pub async fn commit(
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn delete(_key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }

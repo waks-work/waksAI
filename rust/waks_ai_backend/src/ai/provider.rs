@@ -26,11 +26,13 @@ pub struct GenerateResp {
     pub response: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct OllamaGenerateResponse {
     pub response: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct OllamaStreamResponse {
     pub response: String,

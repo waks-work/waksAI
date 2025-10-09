@@ -1,23 +1,74 @@
+use chrono::{DateTime, Utc};
 use once_cell::sync::OnceCell;
-use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
-<<<<<<< HEAD
+use serde::{Deserialize, Serialize};
+use sqlx::{sqlite::SqlitePoolOptions, FromRow, SqlitePool};
 use std::{fs, path::Path};
 
+// ===================================================
+// 🔹 GLOBAL DATABASE POOL
+// ===================================================
 static POOL: OnceCell<SqlitePool> = OnceCell::new();
-
 type DbResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
+// ===================================================
+// 🧱 DATA MODELS
+// ===================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct AiSessionStatus {
+    pub session_id: String,
+    pub ai_model: String,
+    pub provider: String,
+    pub user_prompt: Option<String>,
+    pub system_prompt: Option<String>,
+    pub metadata: Option<String>,
+    pub status: Option<String>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct AiResponse {
+    pub id: i64,
+    pub session_id: String,
+    pub ai_response: String,
+    pub tokens_used: Option<i64>,
+    pub response_time_ms: Option<i64>,
+    pub created_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct CodeChange {
+    pub code_change_id: i64,
+    pub session_id: String,
+    pub file_name: Option<String>,
+    pub previous_code: Option<String>,
+    pub changed_code: Option<String>,
+    pub description: Option<String>,
+    pub backup_path: Option<String>,
+    pub created_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct FrontendActivity {
+    pub activity_id: i64,
+    pub session_id: Option<String>,
+    pub action: String,
+    pub payload: Option<String>,
+    pub timestamp: Option<DateTime<Utc>>,
+}
+
+// ===================================================
+// 🧩 DATABASE INITIALIZATION
+// ===================================================
 pub async fn init() -> DbResult<()> {
     let dir = "storage_data";
     let db_path = format!("{}/storage.db", dir);
 
     tokio::fs::create_dir_all(dir).await?;
-
     if !Path::new(&db_path).exists() {
         fs::File::create(&db_path)?;
         println!("🆕 Created new SQLite database file at {}", db_path);
-    } else {
-        println!("🔄 Opened existing SQLite database at {}", db_path);
     }
 
     let pool = SqlitePoolOptions::new()
@@ -25,11 +76,70 @@ pub async fn init() -> DbResult<()> {
         .connect(&format!("sqlite:{}", db_path))
         .await?;
 
+    // Sequential table creation
     sqlx::query(
-        "CREATE TABLE IF NOT EXISTS storage (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        );",
+        r#"
+        CREATE TABLE IF NOT EXISTS ai_session_status (
+            session_id TEXT PRIMARY KEY,
+            ai_model TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            user_prompt TEXT,
+            system_prompt TEXT,
+            metadata TEXT,
+            status TEXT DEFAULT 'completed',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS ai_response (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            ai_response TEXT NOT NULL,
+            tokens_used INTEGER,
+            response_time_ms INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(session_id) REFERENCES ai_session_status(session_id)
+        );
+    "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS code_changes (
+            code_change_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            file_name TEXT,
+            previous_code TEXT,
+            changed_code TEXT,
+            description TEXT,
+            backup_path TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(session_id) REFERENCES ai_session_status(session_id)
+        );
+    "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS frontend_activity (
+            activity_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT,
+            action TEXT NOT NULL,
+            payload TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(session_id) REFERENCES ai_session_status(session_id)
+        );
+    "#,
     )
     .execute(&pool)
     .await?;
@@ -38,119 +148,121 @@ pub async fn init() -> DbResult<()> {
         return Err("Database pool already initialized".into());
     }
 
-    println!("✅ SQLite initialized and ready at {}", db_path);
+    println!("✅ Database ready at {}", db_path);
     Ok(())
 }
 
+// ===================================================
+// 🧠 POOL ACCESSOR
+// ===================================================
 fn get_pool() -> &'static SqlitePool {
-    POOL.get().expect("DB not initialized. Call init() first.")
+    POOL.get()
+        .expect("❌ DB not initialized — call init() first")
 }
 
-pub async fn save(key: &str, value: &str) -> DbResult<()> {
-    sqlx::query("INSERT OR REPLACE INTO storage (key, value) VALUES (?, ?)")
-        .bind(key)
-        .bind(value)
-        .execute(get_pool())
-=======
+// ===================================================
+// ⚙️ CRUD OPERATIONS
+// ===================================================
 
-static POOL: OnceCell<SqlitePool> = OnceCell::new();
-
-pub async fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect("sqlite:storage.db")
-        .await?;
-
-    sqlx::query("CREATE TABLE IF NOT EXISTS storage (key TEXT PRIMARY KEY, value TEXT);")
-        .execute(&pool)
-        .await?;
-
-    POOL.set(pool).unwrap();
+// ---- AI SESSION STATUS ----
+pub async fn insert_session(session: &AiSessionStatus) -> DbResult<()> {
+    sqlx::query(
+        "INSERT OR REPLACE INTO ai_session_status 
+         (session_id, ai_model, provider, user_prompt, system_prompt, metadata, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&session.session_id)
+    .bind(&session.ai_model)
+    .bind(&session.provider)
+    .bind(&session.user_prompt)
+    .bind(&session.system_prompt)
+    .bind(&session.metadata)
+    .bind(&session.status)
+    .execute(get_pool())
+    .await?;
     Ok(())
 }
 
-pub async fn save(key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let pool = POOL.get().unwrap();
-    sqlx::query("INSERT OR REPLACE INTO storage (key, value) VALUES (?, ?)")
-        .bind(key)
-        .bind(value)
-        .execute(pool)
->>>>>>> c7277b6daca621643918d9cab9510edec67d0fce
-        .await?;
+pub async fn get_session(session_id: &str) -> DbResult<Option<AiSessionStatus>> {
+    let row = sqlx::query_as::<_, AiSessionStatus>(
+        "SELECT * FROM ai_session_status WHERE session_id = ?",
+    )
+    .bind(session_id)
+    .fetch_optional(get_pool())
+    .await?;
+    Ok(row)
+}
+
+// ---- AI RESPONSE ----
+pub async fn insert_response(resp: &AiResponse) -> DbResult<()> {
+    sqlx::query(
+        "INSERT INTO ai_response (session_id, ai_response, tokens_used, response_time_ms)
+         VALUES (?, ?, ?, ?)",
+    )
+    .bind(&resp.session_id)
+    .bind(&resp.ai_response)
+    .bind(&resp.tokens_used)
+    .bind(&resp.response_time_ms)
+    .execute(get_pool())
+    .await?;
     Ok(())
 }
-
-<<<<<<< HEAD
-/// by key
-pub async fn load(key: &str) -> DbResult<Option<String>> {
-    let row: Option<(String,)> = sqlx::query_as("SELECT value FROM storage WHERE key = ?")
-        .bind(key)
-        .fetch_optional(get_pool())
-=======
-pub async fn load(key: &str) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
-    let pool = POOL.get().unwrap();
-    let row: Option<(String,)> = sqlx::query_as("SELECT value FROM storage WHERE key = ?")
-        .bind(key)
-        .fetch_optional(pool)
->>>>>>> c7277b6daca621643918d9cab9510edec67d0fce
-        .await?;
-    Ok(row.map(|r| r.0))
-}
-
-<<<<<<< HEAD
-/// Delete a key-value pair
-pub async fn delete(key: &str) -> DbResult<()> {
-    sqlx::query("DELETE FROM storage WHERE key = ?")
-        .bind(key)
-        .execute(get_pool())
-        .await?;
-    Ok(())
-}
-
-/// Check if a key exists
-pub async fn exists(key: &str) -> DbResult<bool> {
-    let row: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM storage WHERE key = ?")
-        .bind(key)
-        .fetch_optional(get_pool())
-        .await?;
-    Ok(row.is_some())
-}
-
-/// List all keys
-pub async fn list() -> DbResult<Vec<String>> {
-    let rows: Vec<(String,)> = sqlx::query_as("SELECT key FROM storage")
-        .fetch_all(get_pool())
-        .await?;
-    Ok(rows.into_iter().map(|r| r.0).collect())
-}
-
-/// List all key-value pairs
-pub async fn list_with_values() -> DbResult<Vec<(String, String)>> {
-    let rows: Vec<(String, String)> = sqlx::query_as("SELECT key, value FROM storage")
+#[allow(dead_code)]
+pub async fn get_responses_by_session(session_id: &str) -> DbResult<Vec<AiResponse>> {
+    let rows = sqlx::query_as::<_, AiResponse>("SELECT * FROM ai_response WHERE session_id = ?")
+        .bind(session_id)
         .fetch_all(get_pool())
         .await?;
     Ok(rows)
 }
 
-/// Count total key-value pairs
-pub async fn count() -> DbResult<i64> {
-    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM storage")
-        .fetch_one(get_pool())
-        .await?;
-    Ok(row.0)
+// ---- CODE CHANGES ----
+pub async fn insert_code_change(change: &CodeChange) -> DbResult<()> {
+    sqlx::query(
+        "INSERT INTO code_changes 
+         (session_id, file_name, previous_code, changed_code, description, backup_path)
+         VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&change.session_id)
+    .bind(&change.file_name)
+    .bind(&change.previous_code)
+    .bind(&change.changed_code)
+    .bind(&change.description)
+    .bind(&change.backup_path)
+    .execute(get_pool())
+    .await?;
+    Ok(())
 }
 
-/// Clear all data
-pub async fn clear() -> DbResult<()> {
-    sqlx::query("DELETE FROM storage")
-        .execute(get_pool())
-=======
-pub async fn delete(key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let pool = POOL.get().unwrap();
-    sqlx::query("DELETE FROM storage WHERE key = ?")
-        .bind(key)
-        .execute(pool)
->>>>>>> c7277b6daca621643918d9cab9510edec67d0fce
+pub async fn get_code_changes(session_id: &str) -> DbResult<Vec<CodeChange>> {
+    let rows = sqlx::query_as::<_, CodeChange>("SELECT * FROM code_changes WHERE session_id = ?")
+        .bind(session_id)
+        .fetch_all(get_pool())
         .await?;
+    Ok(rows)
+}
+
+// ---- FRONTEND ACTIVITY ----
+pub async fn insert_frontend_activity(activity: &FrontendActivity) -> DbResult<()> {
+    sqlx::query(
+        "INSERT INTO frontend_activity (session_id, action, payload)
+         VALUES (?, ?, ?)",
+    )
+    .bind(&activity.session_id)
+    .bind(&activity.action)
+    .bind(&activity.payload)
+    .execute(get_pool())
+    .await?;
     Ok(())
+}
+
+#[allow(dead_code)]
+pub async fn get_frontend_activities(session_id: &str) -> DbResult<Vec<FrontendActivity>> {
+    let rows = sqlx::query_as::<_, FrontendActivity>(
+        "SELECT * FROM frontend_activity WHERE session_id = ?",
+    )
+    .bind(session_id)
+    .fetch_all(get_pool())
+    .await?;
+    Ok(rows)
 }
