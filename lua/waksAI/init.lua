@@ -1,9 +1,10 @@
-local M     = {}
+local M      = {}
 
-local ui    = require("waksAI.ui")
-local api   = require("waksAI.api")
-local state = require("waksAI.state")
-local utils = require("waksAI.utils")
+local ui     = require("waksAI.ui")
+local api    = require("waksAI.api")
+local state  = require("waksAI.state")
+local utils  = require("waksAI.utils")
+local picker = require("waksAI.picker")
 
 function M.setup(opts)
   state.setup(opts or {})
@@ -34,7 +35,7 @@ end
 
 -- Visual selection helper
 function M.explain_visual()
-   -- check if user has selected texted
+  -- check if user has selected texted
   ui.open_chat()
   local prompt = "Explain the selected code and suggest improvements."
   ui.render_user(prompt)
@@ -73,6 +74,9 @@ function M.keymaps()
   vim.keymap.set("n", "<leader>ws", M.prompt, { desc = "waksAI: Send prompt" })
   vim.keymap.set("v", "<leader>wv", M.explain_visual, { desc = "waksAI: Explain selection" })
   vim.keymap.set("n", "<leader>wm", M.toggle_model, { desc = "waksAI: Toggle model" })
+  vim.keymap.set("n", "<leader>wp", picker.switch_provider, { desc = "waksAI: Switch provider" })
+  vim.keymap.set("n", "<leader>wM", picker.switch_model, { desc = "waksAI: Switch model" })
+  vim.keymap.set("n", "<leader>wr", picker.register_model, { desc = "waksAI: Register model" })
 end
 
 return M

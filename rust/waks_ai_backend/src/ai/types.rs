@@ -14,6 +14,8 @@ pub struct GenerateReq {
     pub stream: bool,
     pub api_key: Option<String>,
     pub session_id: Option<String>,
+    pub user_rules: Option<Vec<String>>,
+    pub agent_mode: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]

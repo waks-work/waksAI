@@ -7,6 +7,8 @@ use crate::ai::generator;
 use crate::ai::provider::Message;
 use crate::ai::registry::ProviderConfig;
 
+use super::session::{PromptManager, SessionManager};
+
 #[derive(Clone)]
 pub struct AppState {
     pub sessions: Arc<Mutex<HashMap<String, Vec<Message>>>>,
@@ -19,6 +21,8 @@ impl AppState {
         &self,
         prompt: String,
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        generator::generate_text(self.clone(), prompt).await
+        let session_manager = SessionManager::global().await;
+        let prompt_manager = PromptManager::global().clone();
+        generator::generate_text(self.clone(), session_manager, prompt_manager, prompt).await
     }
 }

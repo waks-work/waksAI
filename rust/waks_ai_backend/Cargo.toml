@@ -32,3 +32,9 @@ tracing-subscriber = "0.3"
 # --- Async Utilities ---
 async-stream = "0.3"
 async-trait = "0.1.68"
+
+# --- uuid ----
+uuid = { version = "1.8", features = ["v4", "serde"] }
+
+# --- Notify ---
+notify = "8"

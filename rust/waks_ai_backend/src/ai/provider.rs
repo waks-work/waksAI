@@ -11,7 +11,7 @@ pub struct Message {
     pub content: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct GenerateReq {
     pub provider: String,
     pub model: String,
@@ -19,6 +19,7 @@ pub struct GenerateReq {
     pub stream: bool,
     pub api_key: Option<String>,
     pub session_id: Option<String>,
+    pub agent_mode: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]

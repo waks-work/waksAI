@@ -10,6 +10,7 @@ use crate::ai::provider::*;
 use crate::ai::stream::{
     create_anthropic_stream, create_ollama_stream, create_openai_stream, StreamType,
 };
+
 pub struct ProviderConfig {
     pub build_request: Arc<
         dyn Fn(
@@ -20,7 +21,8 @@ pub struct ProviderConfig {
             + Sync,
     >,
     pub parse_response: Arc<dyn Fn(&str) -> Result<String, (StatusCode, String)> + Send + Sync>,
-    pub create_stream: Option<Arc<dyn Fn(reqwest::Response, String) -> StreamType + Send + Sync>>,
+    pub create_stream:
+        Option<Arc<dyn Fn(reqwest::Response, String, String) -> StreamType + Send + Sync>>,
 }
 
 pub fn provider_registry() -> HashMap<&'static str, ProviderConfig> {
@@ -40,8 +42,8 @@ pub fn provider_registry() -> HashMap<&'static str, ProviderConfig> {
             ProviderConfig {
                 build_request: Arc::new(move |req| build_openai_like(&url_string, name, req)),
                 parse_response: Arc::new(parse_openai_like),
-                create_stream: Some(Arc::new(|resp, provider| {
-                    create_openai_stream(resp, provider)
+                create_stream: Some(Arc::new(|resp, provider, user_prompt| {
+                    create_openai_stream(resp, provider, user_prompt)
                 })),
             },
         );
@@ -53,8 +55,8 @@ pub fn provider_registry() -> HashMap<&'static str, ProviderConfig> {
         ProviderConfig {
             build_request: Arc::new(|req| build_ollama(req)),
             parse_response: Arc::new(parse_ollama),
-            create_stream: Some(Arc::new(|resp, provider| {
-                create_ollama_stream(resp, provider)
+            create_stream: Some(Arc::new(|resp, provider, user_prompt| {
+                create_ollama_stream(resp, provider, user_prompt)
             })),
         },
     );
@@ -64,8 +66,8 @@ pub fn provider_registry() -> HashMap<&'static str, ProviderConfig> {
         ProviderConfig {
             build_request: Arc::new(|req| build_ollama_chat(req)),
             parse_response: Arc::new(parse_openai_like),
-            create_stream: Some(Arc::new(|resp, provider| {
-                create_openai_stream(resp, provider)
+            create_stream: Some(Arc::new(|resp, provider, user_prompt| {
+                create_openai_stream(resp, provider, user_prompt)
             })),
         },
     );
@@ -76,8 +78,8 @@ pub fn provider_registry() -> HashMap<&'static str, ProviderConfig> {
         ProviderConfig {
             build_request: Arc::new(|req| build_anthropic(req)),
             parse_response: Arc::new(parse_anthropic),
-            create_stream: Some(Arc::new(|resp, provider| {
-                create_anthropic_stream(resp, provider)
+            create_stream: Some(Arc::new(|resp, provider, user_prompt| {
+                create_anthropic_stream(resp, provider, user_prompt)
             })),
         },
     );

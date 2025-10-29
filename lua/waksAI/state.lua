@@ -1,59 +1,132 @@
 local M = {}
 
+-------------------------------------------------------
+-- CONFIGURATION
+-------------------------------------------------------
 M.config = {
-  endpoint = "http://localhost:11500/generate",  --  toggle btn local and remote models
-  model = "deepseek-coder:1.3b",
-  models = { "deepseek-coder:1.3b", "stable-code:3b-code-q4_0" },
-  max_context_turns = 12,   -- keep last N turns for prompt context
-  comment_trim = true,      -- reduce long comments in code
+  endpoint = "http://localhost:11500/generate",   -- unified backend endpoint
+  stream_endpoint = "http://localhost:11500/stream", -- stream variant
+  provider = "local",                             -- default provider (auto overridden from env)
+  api_key = "",                                   -- optional (for external providers)
+  model = "deepseek-coder:1.3b",                  -- default model
+  models = {},                                    -- flat list of models
+  providers = {},                                 -- { provider = { models... } }
+  max_context_turns = 12,
+  comment_trim = true,
 }
 
-M.messages = {}  -- { {role="user"|"ai"|"system", content=""}, ... }
+M.messages = {}
 
+-------------------------------------------------------
+-- SETUP
+-------------------------------------------------------
 function M.setup(opts)
   if opts then
-    for k,v in pairs(opts) do
+    for k, v in pairs(opts) do
       M.config[k] = v
     end
   end
-end
 
-function M.add(role, content)
-  table.insert(M.messages, { role = role, content = content })
-  -- cap size
-  local max = M.config.max_context_turns * 2
-  if #M.messages > max then
-    -- keep last "max" messages
-    local start = #M.messages - max + 1
-    local new = {}
-    for i = start, #M.messages do table.insert(new, M.messages[i]) end
-    M.messages = new
+  -- Load ENV overrides
+  local env_key = os.getenv("WAKS_API_KEY")
+  if env_key and env_key ~= "" then
+    M.config.api_key = env_key
+  end
+
+  local env_provider = os.getenv("WAKS_PROVIDER")
+  if env_provider and env_provider ~= "" then
+    M.config.provider = env_provider
+  end
+
+  local env_model = os.getenv("WAKS_MODEL")
+  if env_model and env_model ~= "" then
+    M.config.model = env_model
   end
 end
 
-function M.get_context_text()
-  local buf = {}
-  -- lightweight chat history for /generate
-  for _, m in ipairs(M.messages) do
-    local who = (m.role == "user") and "User" or (m.role == "ai" and "Assistant" or "System")
-    table.insert(buf, who .. ": " .. m.content)
+-------------------------------------------------------
+-- MODEL & PROVIDER MANAGEMENT
+-------------------------------------------------------
+
+-- Register new model under a provider
+function M.register_model(provider, model_name)
+  if not provider or not model_name then return end
+
+  if not M.config.providers[provider] then
+    M.config.providers[provider] = {}
   end
-  return table.concat(buf, "\n")
+
+  -- avoid duplicates
+  for _, m in ipairs(M.config.providers[provider]) do
+    if m == model_name then return end
+  end
+
+  table.insert(M.config.providers[provider], model_name)
+
+  local found = false
+  for _, existing in ipairs(M.config.models) do
+    if existing == model_name then
+      found = true
+      break
+    end
+  end
+  if not found then
+    table.insert(M.config.models, model_name)
+  end
 end
 
+-- Switch current model
+function M.set_model(model)
+  if model and model ~= "" then
+    M.config.model = model
+    vim.notify("Switched to model: " .. model, vim.log.levels.INFO)
+  end
+end
+
+-- Switch current provider
+function M.set_provider(provider)
+  if provider and provider ~= "" then
+    M.config.provider = provider
+    vim.notify("Switched to provider: " .. provider, vim.log.levels.INFO)
+  end
+end
+
+-- Get active model
 function M.current_model()
   return M.config.model
 end
 
-function M.cycle_model()
-  local idx = 1
-  for i, v in ipairs(M.config.models) do
-    if v == M.config.model then idx = i break end
+-- Get active provider
+function M.current_provider()
+  return M.config.provider
+end
+
+-- Get list of all models across all providers
+function M.get_all_models()
+  return M.config.models
+end
+
+-- Get models by provider
+function M.get_models_by_provider(provider)
+  return M.config.providers[provider] or {}
+end
+
+-------------------------------------------------------
+-- MESSAGE MANAGEMENT
+-------------------------------------------------------
+
+-- Add a new message to the conversation
+function M.add(role, content)
+  table.insert(M.messages, { role = role, content = content })
+  -- Limit context size
+  if #M.messages > M.config.max_context_turns then
+    table.remove(M.messages, 1)
   end
-  local next_i = (idx % #M.config.models) + 1
-  M.config.model = M.config.models[next_i]
-  return M.config.model
+end
+
+-- Clear message history
+function M.clear_messages()
+  M.messages = {}
 end
 
 return M
-

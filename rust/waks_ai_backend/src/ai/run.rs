@@ -5,6 +5,7 @@ use crate::{
     ai::{
         generator::{generate, stream_generate},
         registry::provider_registry,
+        session::{PromptManager, SessionManager},
         state::AppState,
     },
     communication,
@@ -22,6 +23,9 @@ pub async fn run_server() {
         return;
     }
 
+    let session_manager = SessionManager::new();
+    let prompt_manager = PromptManager::new();
+
     let strong_handle = StrongHandle::new();
     let state = AppState {
         sessions: Arc::new(Mutex::new(HashMap::new())),
@@ -36,13 +40,20 @@ pub async fn run_server() {
     let app = Router::new()
         .route("/generate", post(generate))
         .route("/stream", post(stream_generate))
-        .with_state(state);
+        .with_state(state)
+        .with_state(session_manager.clone())
+        .with_state(prompt_manager.clone());
 
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 11500));
     info!("waksAI backend running on http://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-
+    let listener = match tokio::net::TcpListener::bind(addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("Port already in use, connecting to existing instance: {e}");
+            return;
+        }
+    };
     if let Err(e) = axum::serve(listener, app).await {
         eprintln!("Server error: {e}");
     }
