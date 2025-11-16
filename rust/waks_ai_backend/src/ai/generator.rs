@@ -147,7 +147,8 @@ pub async fn generate(
 
     // Start AgentManager if agent_mode is enabled
     if req.agent_mode.unwrap_or(false) {
-        let rules_file = PathBuf::from("config/user_rules.txt");
+        let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        let rules_file = PathBuf::from(format!("{}/.config/nvim/ai/user_rules.txt", home_dir));
         let agent_manager = AgentManager::new(
             Arc::new(session_manager.clone()),
             Arc::new(prompt_manager.clone()),
@@ -235,7 +236,8 @@ pub async fn stream_generate(
         .unwrap_or_else(|| "internal".to_string());
 
     if req.agent_mode.unwrap_or(false) {
-        let rules_file = PathBuf::from("config/user_rules.txt");
+        let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+        let rules_file = PathBuf::from(format!("{}/.config/nvim/ai/user_rules.txt", home_dir));
         let agent_manager = AgentManager::new(
             Arc::new(session_manager.clone()),
             Arc::new(prompt_manager.clone()),

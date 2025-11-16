@@ -89,6 +89,8 @@ pub async fn sync_session_to_file(
     Ok(())
 }
 
+/// TODO: Fix it to match the database counterpart:  change in sync_code_changes..., response in
+/// responses and activity in  activity,
 /// Mirror all AI responses for a session
 #[allow(dead_code)]
 pub async fn sync_responses_to_file(

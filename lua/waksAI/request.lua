@@ -1,83 +1,49 @@
 local state = require("waksAI.state")
-local json = vim.fn.json_encode and vim.fn.json_decode and vim.fn or require("dkjson")
+
 local M = {}
 
--------------------------------------------------------
--- Send normal (non-streaming) AI request
--------------------------------------------------------
-function M.send_message(payload, callback)
-  if not payload or not payload.model or not payload.provider then
-    vim.notify("request.send_message: missing model or provider", vim.log.levels.ERROR)
-    return
-  end
-
-  local endpoint = string.format(
-    "%s/api/ai?provider=%s&model=%s",
-    state.config.endpoint or "http://127.0.0.1:11500",
-    payload.provider,
-    payload.model
-  )
-
-  vim.fn.jobstart({
-    "curl", "-s",
-    "-X", "POST", endpoint,
-    "-H", "Content-Type: application/json",
-    "-d", vim.fn.json_encode(payload),
-  }, {
-    stdout_buffered = true,
-    on_stdout = function(_, data)
-      local output = table.concat(data, "")
-      if output ~= "" then
-        local ok, decoded = pcall(vim.fn.json_decode, output)
-        if ok and decoded then
-          if callback then callback(decoded) end
-        else
-          vim.notify("Invalid JSON response from backend", vim.log.levels.ERROR)
-        end
-      end
-    end,
-    on_stderr = function(_, err)
-      if err and #err > 0 then
-        vim.notify("Backend stderr: " .. table.concat(err, "\n"), vim.log.levels.WARN)
-      end
-    end,
-  })
+local function json_encode(tbl) return vim.fn.json_encode(tbl) end
+local function json_decode(str)
+  local ok, val = pcall(vim.fn.json_decode, str)
+  if ok then return val else return nil end
 end
 
--------------------------------------------------------
--- Stream AI response (SSE or chunked)
--------------------------------------------------------
-function M.stream_message(payload, on_chunk, on_done)
-  if not payload or not payload.model or not payload.provider then
-    vim.notify("request.stream_message: missing model or provider", vim.log.levels.ERROR)
-    return
-  end
-
-  local stream_endpoint = string.format(
-    "%s/api/ai/stream?provider=%s&model=%s",
-    state.config.endpoint or "http://127.0.0.1:11500",
-    payload.provider,
-    payload.model
-  )
-
-  vim.fn.jobstart({
-    "curl", "-N", "-s",
-    "-X", "POST", stream_endpoint,
+-- Non-streaming call
+function M.send(payload, callback)
+  local body = json_encode(payload)
+  local resp = vim.fn.system({
+    "curl", "-s",
+    "-X", "POST",
     "-H", "Content-Type: application/json",
-    "-d", vim.fn.json_encode(payload),
+    "-d", body,
+    state.config.endpoint .. "/generate",
+  })
+  local decoded = json_decode(resp)
+  if callback then callback(decoded or resp) end
+end
+
+-- Streaming call
+function M.stream(payload, on_chunk)
+  local handle
+  handle = vim.fn.jobstart({
+    "curl", "-N", "-X", "POST",
+    "-H", "Content-Type: application/json",
+    "-d", json_encode(payload),
+    state.config.endpoint .. "/stream",
   }, {
-    stdout_buffered = false,
     on_stdout = function(_, data)
-      for _, chunk in ipairs(data) do
-        if chunk ~= "" and on_chunk then
-          on_chunk(chunk)
+      for _, line in ipairs(data) do
+        if line ~= "" then
+          on_chunk(line)
         end
       end
     end,
+    stdout_buffered = false,
     on_exit = function()
-      if on_done then on_done() end
+      on_chunk("[END]")
     end,
   })
 end
 
 return M
+
