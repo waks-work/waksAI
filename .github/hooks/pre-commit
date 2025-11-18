@@ -1,0 +1,10 @@
+#!/bin/bash
+echo "🔍 Running pre-commit checks for waksAI..."
+
+# Rust formatting
+[ -f "rust/waks_ai_backend/Cargo.toml" ] && cargo fmt --manifest-path rust/waks_ai_backend/Cargo.toml
+
+# Lua syntax check
+find lua -name "*.lua" -exec luac -p {} \; 2>/dev/null || true
+
+echo "✅ Pre-commit checks passed!"

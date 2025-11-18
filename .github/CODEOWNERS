@@ -1,0 +1,10 @@
+# Default owners
+* @project-maintainers
+
+# Core modules (update these per project)
+/src/ @core-team
+/docs/ @documentation-team
+/.github/ @devops-team
+
+# Fallback for solo development
+* @YOUR_USERNAME

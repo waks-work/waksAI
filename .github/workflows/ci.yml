@@ -1,0 +1,33 @@
+name: waksAI CI
+
+on: [push, pull_request]
+
+jobs:
+  rust-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Test Rust Backend
+        run: |
+          cd rust/waks_ai_backend
+          cargo test
+          cargo clippy -- -D warnings
+
+  lua-plugin:
+    runs-on: ubuntu-latest  
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lua Syntax Check
+        run: |
+          find lua -name "*.lua" -exec luac -p {} \;
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Security Scan
+        uses: actions/codeql-action/analyze@v3
