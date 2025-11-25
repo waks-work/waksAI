@@ -13,6 +13,7 @@ use tracing::info;
 use crate::ai::{
     agent::manager::AgentManager,
     provider::{GenerateReq, GenerateResp, Message},
+    registry::Provider,
     session::{Prompt, PromptManager, SessionManager},
     state::AppState,
 };
@@ -37,7 +38,11 @@ async fn setup_request_with_sessions(
             prompt_manager
                 .add_prompt(
                     session_id,
-                    Prompt::new(msg.content.clone(), msg.role.clone(), req.provider.clone()),
+                    Prompt::new(
+                        msg.content.clone(),
+                        msg.role.clone(),
+                        req.provider.clone().to_string(),
+                    ),
                 )
                 .await;
         }
@@ -84,7 +89,7 @@ pub async fn generate_text(
         .await;
 
     let req = GenerateReq {
-        provider: "ollama".to_string(),
+        provider: Provider::Ollama,
         model: "llama2".to_string(),
         messages: vec![Message {
             role: "user".to_string(),
@@ -98,7 +103,7 @@ pub async fn generate_text(
 
     let provider_config = state
         .registry
-        .get(req.provider.as_str())
+        .get(&req.provider)
         .ok_or("Unsupported provider")?;
     let (url, headers, body) = (provider_config.build_request)(&req)
         .map_err(|e| format!("Request build error: {:?}", e))?;
@@ -115,7 +120,7 @@ pub async fn generate_text(
     }
 
     let text = resp.text().await?;
-    let parsed = (provider_config.parse_response)(&text)
+    let parsed = (provider_config.parser.parse(&text))
         .map_err(|e| format!("Response parse error: {:?}", e))?;
 
     // Save assistant response
@@ -159,7 +164,7 @@ pub async fn generate(
 
     let provider_config = state
         .registry
-        .get(req.provider.as_str())
+        .get(&req.provider)
         .ok_or((StatusCode::BAD_REQUEST, "Unsupported provider".into()))?;
     let (url, headers, body) = (provider_config.build_request)(&req)?;
 
@@ -182,7 +187,7 @@ pub async fn generate(
         .text()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let parsed = (provider_config.parse_response)(&text)?;
+    let parsed = (provider_config.parser.parse(&text))?;
 
     if req.session_id.is_some() {
         prompt_manager
@@ -205,7 +210,7 @@ pub async fn stream_generate(
 
     let provider_config = state
         .registry
-        .get(req.provider.as_str())
+        .get(&req.provider)
         .ok_or((StatusCode::BAD_REQUEST, "Unsupported provider".into()))?;
 
     let create_stream_fn = provider_config
@@ -254,7 +259,7 @@ pub async fn stream_generate(
         .map(|m| m.content.clone())
         .unwrap_or_default();
 
-    let base_stream = (create_stream_fn)(resp, req.provider.clone(), user_prompt);
+    let base_stream = (create_stream_fn)(resp, req.provider.clone().to_string(), user_prompt);
 
     let wrapped_stream = async_stream::stream! {
         let mut stream = Box::pin(base_stream);

@@ -31,13 +31,13 @@ impl AgentManager {
             last_modified: Arc::new(RwLock::new(None)),
         };
 
-        // Start file watcher for live reload
+        // reload
         manager.watch_rules_file();
 
         manager
     }
 
-    /// Load rules from file (multi-line {} blocks supported)
+    // {}
     async fn load_rules(&self) -> Vec<String> {
         let metadata = match tokio::fs::metadata(&self.rules_file).await {
             Ok(meta) => meta,
@@ -91,7 +91,7 @@ impl AgentManager {
             *last_write = modified;
         }
 
-        println!("📄 Rules reloaded! Total rules: {}", rules.len());
+        println!("AI Rules reloaded! Total rules: {}", rules.len());
         rules
     }
 

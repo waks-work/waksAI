@@ -12,14 +12,14 @@ pub async fn start(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let (req_tx, mut req_rx, res_tx, mut res_rx) = make_channels();
 
-    // Task to handle requests from frontend
+    //  spawn requests
     let ai_clone = ai_state.clone();
     let storage_clone = storage.clone();
     tokio::spawn(async move {
         while let Some(req) = req_rx.recv().await {
             let response = handle_request(req, ai_clone.clone(), storage_clone.clone()).await;
-            if let Err(e) = res_tx.send(response).await {
-                eprintln!("Failed to send response: {e}");
+            if let Err(err) = res_tx.send(response).await {
+                eprintln!("Failed to send response: {err}");
             }
         }
     });
@@ -29,10 +29,9 @@ pub async fn start(
             prompt: "Hello AI".into(),
         })
         .await
-        .map_err(|e| format!("Send error: {e}"))?;
+        .map_err(|err| format!("Send error: {err}"))?;
 
-    // Example: listen for responses
-    if let Some(res) = res_rx.recv().await {
+    while let Some(res) = res_rx.recv().await {
         println!("Frontend got response: {:?}", res);
     }
 

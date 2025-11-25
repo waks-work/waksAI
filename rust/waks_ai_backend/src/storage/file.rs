@@ -6,9 +6,7 @@ use tokio::fs;
 
 const STORAGE_DIR: &str = "storage_data";
 
-// ===================================================
-// 🧱 Generic Key-Value Backup (legacy support)
-// ===================================================
+// kv
 pub async fn save(key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let path = PathBuf::from(STORAGE_DIR).join(format!("{}.json", key));
     fs::create_dir_all(STORAGE_DIR).await?;
@@ -26,6 +24,7 @@ pub async fn load(key: &str) -> Result<Option<String>, Box<dyn std::error::Error
     }
 }
 
+// todo implement deletion
 #[allow(dead_code)]
 pub async fn delete(key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let path = PathBuf::from(STORAGE_DIR).join(format!("{}.json", key));
@@ -35,9 +34,7 @@ pub async fn delete(key: &str) -> Result<(), Box<dyn std::error::Error + Send + 
     Ok(())
 }
 
-// ===================================================
-// 🧠 Structured Sync Layer
-// ===================================================
+// structured
 #[derive(Serialize, Deserialize)]
 pub struct FileSyncLog {
     pub record_type: String,
@@ -45,9 +42,6 @@ pub struct FileSyncLog {
     pub synced_at: String,
 }
 
-// ---------------------------------------------------
-// 🔹 Helper for writing both record and sync log
-// ---------------------------------------------------
 async fn write_with_log(
     record_type: &str,
     record_id: &str,
@@ -70,15 +64,14 @@ async fn write_with_log(
     let log_path = PathBuf::from(STORAGE_DIR).join("sync_log.json");
     let _ = fs::write(&log_path, serde_json::to_string_pretty(&log)?).await;
 
-    println!("📁 {} {} mirrored to file system", record_type, record_id);
+    println!(
+        "db record {} {} mirrored to file system",
+        record_type, record_id
+    );
     Ok(())
 }
 
-// ---------------------------------------------------
-// 🧩 SYNC FUNCTIONS FOR EACH TABLE
-// ---------------------------------------------------
-
-/// Mirror AI session status from DB → file system
+// mirrors the db
 pub async fn sync_session_to_file(
     session_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {

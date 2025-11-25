@@ -2,6 +2,8 @@ use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+use super::registry::Provider;
+
 //---------------------------------
 // Request + Response Types
 //---------------------------------
@@ -13,7 +15,7 @@ pub struct Message {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GenerateReq {
-    pub provider: String,
+    pub provider: Provider,
     pub model: String,
     pub messages: Vec<Message>,
     pub stream: bool,

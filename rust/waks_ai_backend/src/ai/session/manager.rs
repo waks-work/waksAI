@@ -20,44 +20,35 @@ impl PromptManager {
         }
     }
 
-    /// --- Singleton Global Instance ---
     pub fn global() -> &'static PromptManager {
         static INSTANCE: OnceCell<PromptManager> = OnceCell::new();
         INSTANCE.get_or_init(|| PromptManager::new())
     }
 
-    /// Add a new prompt to a session
     pub async fn add_prompt(&self, session_id: &str, prompt: Prompt) {
         let mut map = self.prompts.lock().await;
         map.entry(session_id.to_string()).or_default().push(prompt);
     }
 
-    /// Get all prompts for a session
     #[allow(dead_code)]
     pub async fn get_prompts(&self, session_id: &str) -> Option<Vec<Prompt>> {
         let map = self.prompts.lock().await;
         map.get(session_id).cloned()
     }
 
-    /// Clear all prompts for a session
     #[allow(dead_code)]
     pub async fn clear_prompts(&self, session_id: &str) {
         let mut map = self.prompts.lock().await;
         map.remove(session_id);
     }
 
-    /// Count prompts for a session
     #[allow(dead_code)]
     pub async fn prompt_count(&self, session_id: &str) -> usize {
         let map = self.prompts.lock().await;
         map.get(session_id).map(|v| v.len()).unwrap_or(0)
     }
 
-    // ----------------------------------------------------------
-    // 🧠 UPDATED SECTION: Streaming + DB persistence
-    // ----------------------------------------------------------
-
-    /// Append chunks during streaming and persist if `storage` provided
+    // in stream
     pub async fn update_response(
         &self,
         session_id: &str,
@@ -85,13 +76,12 @@ impl PromptManager {
         }
     }
 
-    /// Retrieve last in-memory response
+    // last in mem
     pub async fn get_response(&self, session_id: &str) -> Option<String> {
         let responses = self.responses.lock().await;
         responses.get(session_id).cloned()
     }
 
-    /// Clear all responses for a session
     #[allow(dead_code)]
     pub async fn clear_response(&self, session_id: &str) {
         let mut responses = self.responses.lock().await;

@@ -8,7 +8,6 @@ pub type RequestReceiver = mpsc::Receiver<Request>;
 pub type ResponseSender = mpsc::Sender<Response>;
 pub type ResponseReceiver = mpsc::Receiver<Response>;
 
-/// Create paired request/response channels
 pub fn make_channels() -> (
     RequestSender,
     RequestReceiver,

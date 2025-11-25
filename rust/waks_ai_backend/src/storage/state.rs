@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-/// Central memory + persistence layer
+// Memory manager
 #[derive(Clone)]
 pub struct StrongHandle {
     memory: Arc<Mutex<HashMap<String, String>>>,
@@ -16,30 +16,22 @@ impl StrongHandle {
         }
     }
 
-    // ======================================================
-    // 🔹 GENERIC KEY-VALUE API (fallback / legacy)
-    // ======================================================
-
-    /// Save a generic key-value pair to memory + file + git
+    // save generic k,v
     pub async fn set(&self, key: String, value: String) {
         {
             let mut lock = self.memory.lock().await;
             lock.insert(key.clone(), value.clone());
         }
 
-        // Sync all layers — db not used here since db.rs has no generic kv
-        let _ = file::save(&key, &value).await;
-        let _ = git::commit(&key, &value).await;
+        file::save(&key, &value).await;
+        git::commit(&key, &value).await;
     }
 
-    /// Retrieve a value by key (memory → file)
     pub async fn get(&self, key: &str) -> Option<String> {
-        // In-memory check
         if let Some(value) = self.memory.lock().await.get(key).cloned() {
             return Some(value);
         }
 
-        // File fallback
         if let Ok(Some(value)) = file::load(key).await {
             return Some(value);
         }
@@ -47,7 +39,6 @@ impl StrongHandle {
         None
     }
 
-    /// Remove from memory + file + git
     #[allow(dead_code)]
     pub async fn remove(&self, key: &str) {
         {
@@ -55,15 +46,10 @@ impl StrongHandle {
             lock.remove(key);
         }
 
-        let _ = file::delete(key).await;
-        let _ = git::delete(key).await;
+        file::delete(key).await;
+        git::delete(key).await;
     }
 
-    // ======================================================
-    // 🧠 STRUCTURED DATA SYNC HELPERS (DB-INTEGRATED)
-    // ======================================================
-
-    /// Record and sync an AI session
     pub async fn record_session(
         &self,
         session: &db::AiSessionStatus,
@@ -73,7 +59,6 @@ impl StrongHandle {
         Ok(())
     }
 
-    /// Record an AI model response
     pub async fn record_response(
         &self,
         response: &db::AiResponse,
@@ -82,7 +67,6 @@ impl StrongHandle {
         Ok(())
     }
 
-    /// Record a code change entry
     pub async fn record_code_change(
         &self,
         change: &db::CodeChange,
@@ -91,7 +75,6 @@ impl StrongHandle {
         Ok(())
     }
 
-    /// Record frontend activity (UI action, telemetry, etc.)
     pub async fn record_frontend_activity(
         &self,
         activity: &db::FrontendActivity,
@@ -100,9 +83,8 @@ impl StrongHandle {
         Ok(())
     }
 
-    // ======================================================
-    // 🔍 FETCH HELPERS
-    // ======================================================
+    // fetch
+    // TODO --> implement getting the responses from database
     #[allow(dead_code)]
     pub async fn get_session(
         &self,

@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "🏗️ Building cross-language project..."
+echo "Building cross-language project..."
 
 # Rust + C/C++ FFI projects
 if [ -f "Cargo.toml" ] && [ -f "CMakeLists.txt" ]; then
@@ -27,4 +27,4 @@ if [ -f "Cargo.toml" ] && [ -f "pyproject.toml" ]; then
     exit 0
 fi
 
-echo "ℹ️  No cross-language build configuration detected"
+echo " No cross-language build configuration detected"

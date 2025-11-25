@@ -38,3 +38,4 @@ uuid = { version = "1.8", features = ["v4", "serde"] }
 
 # --- Notify ---
 notify = "8"
+fmt = "0.1.0"

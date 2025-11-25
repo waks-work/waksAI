@@ -167,11 +167,7 @@ Developed with ❤️ by the WaksAI Team
 ```yaml
 ---
 
-This is **one single, fully integrated README.md** file. You don’t need separate files for structure, usage, commands, or development notes. Everything is in **one place**, ready to copy.  
-
-If you want, I can **also embed a small ASCII diagram** showing the **Frontend ↔ Backend ↔ AI flow** inside this README for extra clarity.  
-
-Do you want me to add that diagram?
+waks
 
 ```
 

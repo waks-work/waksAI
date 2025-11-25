@@ -4,16 +4,11 @@ use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePoolOptions, FromRow, SqlitePool};
 use std::{fs, path::Path};
 
-// ===================================================
-// 🔹 GLOBAL DATABASE POOL
-// ===================================================
+// db pool
 static POOL: OnceCell<SqlitePool> = OnceCell::new();
 type DbResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-// ===================================================
-// 🧱 DATA MODELS
-// ===================================================
-
+// db models
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct AiSessionStatus {
     pub session_id: String,
@@ -58,9 +53,6 @@ pub struct FrontendActivity {
     pub timestamp: Option<DateTime<Utc>>,
 }
 
-// ===================================================
-// 🧩 DATABASE INITIALIZATION
-// ===================================================
 pub async fn init() -> DbResult<()> {
     let dir = "storage_data";
     let db_path = format!("{}/storage.db", dir);
@@ -68,7 +60,7 @@ pub async fn init() -> DbResult<()> {
     tokio::fs::create_dir_all(dir).await?;
     if !Path::new(&db_path).exists() {
         fs::File::create(&db_path)?;
-        println!("🆕 Created new SQLite database file at {}", db_path);
+        println!("DB Created new SQLite database file at {}", db_path);
     }
 
     let pool = SqlitePoolOptions::new()
@@ -76,7 +68,7 @@ pub async fn init() -> DbResult<()> {
         .connect(&format!("sqlite:{}", db_path))
         .await?;
 
-    // Sequential table creation
+    // tabe creation
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS ai_session_status (
@@ -148,23 +140,16 @@ pub async fn init() -> DbResult<()> {
         return Err("Database pool already initialized".into());
     }
 
-    println!("✅ Database ready at {}", db_path);
+    println!("Database ready at {}", db_path);
     Ok(())
 }
 
-// ===================================================
-// 🧠 POOL ACCESSOR
-// ===================================================
 fn get_pool() -> &'static SqlitePool {
     POOL.get()
-        .expect("❌ DB not initialized — call init() first")
+        .expect("DB failde to initialize — call init() first")
 }
 
-// ===================================================
-// ⚙️ CRUD OPERATIONS
-// ===================================================
-
-// ---- AI SESSION STATUS ----
+// crud
 pub async fn insert_session(session: &AiSessionStatus) -> DbResult<()> {
     sqlx::query(
         "INSERT OR REPLACE INTO ai_session_status 
@@ -193,7 +178,6 @@ pub async fn get_session(session_id: &str) -> DbResult<Option<AiSessionStatus>> 
     Ok(row)
 }
 
-// ---- AI RESPONSE ----
 pub async fn insert_response(resp: &AiResponse) -> DbResult<()> {
     sqlx::query(
         "INSERT INTO ai_response (session_id, ai_response, tokens_used, response_time_ms)
@@ -216,7 +200,6 @@ pub async fn get_responses_by_session(session_id: &str) -> DbResult<Vec<AiRespon
     Ok(rows)
 }
 
-// ---- CODE CHANGES ----
 pub async fn insert_code_change(change: &CodeChange) -> DbResult<()> {
     sqlx::query(
         "INSERT INTO code_changes 
@@ -242,7 +225,6 @@ pub async fn get_code_changes(session_id: &str) -> DbResult<Vec<CodeChange>> {
     Ok(rows)
 }
 
-// ---- FRONTEND ACTIVITY ----
 pub async fn insert_frontend_activity(activity: &FrontendActivity) -> DbResult<()> {
     sqlx::query(
         "INSERT INTO frontend_activity (session_id, action, payload)

@@ -7,13 +7,14 @@ use crate::ai::generator;
 use crate::ai::provider::Message;
 use crate::ai::registry::ProviderConfig;
 
+use super::registry::Provider;
 use super::session::{PromptManager, SessionManager};
 
 #[derive(Clone)]
 pub struct AppState {
     pub sessions: Arc<Mutex<HashMap<String, Vec<Message>>>>,
     pub client: Client,
-    pub registry: Arc<HashMap<&'static str, ProviderConfig>>,
+    pub registry: Arc<HashMap<Provider, ProviderConfig>>,
 }
 
 impl AppState {

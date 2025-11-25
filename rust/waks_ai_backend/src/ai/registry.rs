@@ -1,14 +1,17 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, fmt, sync::Arc};
 
 use axum::http::StatusCode;
+use serde::{Deserialize, Serialize};
 
-use crate::ai::parser::{
-    parse_anthropic, parse_cohere, parse_huggingface, parse_ollama, parse_openai_like,
+use crate::ai::parser::OpenAiParser;
+
+use crate::ai::{
+    provider::*,
+    stream::{create_anthropic_stream, create_ollama_stream, create_openai_stream, StreamType},
 };
-use crate::ai::provider::*;
-use crate::ai::stream::{
-    create_anthropic_stream, create_ollama_stream, create_openai_stream, StreamType,
+
+use super::parser::{
+    AnthropicParser, CohereParser, HuggingFaceParser, OllamaParser, ResponseParser,
 };
 
 pub struct ProviderConfig {
@@ -20,28 +23,95 @@ pub struct ProviderConfig {
             + Send
             + Sync,
     >,
-    pub parse_response: Arc<dyn Fn(&str) -> Result<String, (StatusCode, String)> + Send + Sync>,
+    pub parser: Arc<dyn ResponseParser + Send + Sync>,
     pub create_stream:
         Option<Arc<dyn Fn(reqwest::Response, String, String) -> StreamType + Send + Sync>>,
 }
 
-pub fn provider_registry() -> HashMap<&'static str, ProviderConfig> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+pub enum Provider {
+    OpenAi,
+    Mistral,
+    Ollama,
+    OllamaChat,
+    Anthropic,
+    Cohere,
+    HuggingFace,
+}
+
+impl Provider {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Provider::OpenAi => "openai",
+            Provider::Mistral => "mistral",
+            Provider::Ollama => "ollama",
+            Provider::OllamaChat => "ollama-chat",
+            Provider::Anthropic => "anthropic",
+            Provider::Cohere => "cohere",
+            Provider::HuggingFace => "huggingface",
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Provider {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let deserialized_str = String::deserialize(deserializer)?.to_lowercase();
+        match deserialized_str.as_str() {
+            "openai" => Ok(Provider::OpenAi),
+            "mistral" => Ok(Provider::Mistral),
+            "ollama" => Ok(Provider::Ollama),
+            "ollama-chat" => Ok(Provider::OllamaChat),
+            "anthropic" => Ok(Provider::Anthropic),
+            "cohere" => Ok(Provider::Cohere),
+            "huggingface" => Ok(Provider::HuggingFace),
+            _ => Err(serde::de::Error::custom(format!(
+                "unknown provider: {}",
+                deserialized_str
+            ))),
+        }
+    }
+}
+
+impl fmt::Display for Provider {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Provider::OpenAi => write!(f, "openai"),
+            Provider::Mistral => write!(f, "mistral"),
+            Provider::Ollama => write!(f, "ollama"),
+            Provider::OllamaChat => write!(f, "ollama-chat"),
+            Provider::Anthropic => write!(f, "anthropic"),
+            Provider::Cohere => write!(f, "cohere"),
+            Provider::HuggingFace => write!(f, "huggingface"),
+        }
+    }
+}
+
+pub fn provider_registry() -> HashMap<Provider, ProviderConfig> {
     let mut map = HashMap::new();
 
     // OpenAI-compatible providers
     let openai_like_providers = [
-        ("openai", "https://api.openai.com/v1/chat/completions"),
-        ("mistral", "https://api.mistral.ai/v1/chat/completions"),
+        (
+            Provider::OpenAi,
+            "https://api.openai.com/v1/chat/completions",
+        ),
+        (
+            Provider::Mistral,
+            "https://api.mistral.ai/v1/chat/completions",
+        ),
     ];
 
-    for (name, url) in openai_like_providers {
-        let name_static: &'static str = Box::leak(name.to_string().into_boxed_str());
+    for (provider, url) in openai_like_providers {
+        let name = format!("{:?}", provider).to_lowercase();
         let url_string = url.to_string();
         map.insert(
-            name_static,
+            provider,
             ProviderConfig {
-                build_request: Arc::new(move |req| build_openai_like(&url_string, name, req)),
-                parse_response: Arc::new(parse_openai_like),
+                build_request: Arc::new(move |req| build_openai_like(&url_string, &name, req)),
+                parser: Arc::new(OpenAiParser),
                 create_stream: Some(Arc::new(|resp, provider, user_prompt| {
                     create_openai_stream(resp, provider, user_prompt)
                 })),
@@ -49,12 +119,11 @@ pub fn provider_registry() -> HashMap<&'static str, ProviderConfig> {
         );
     }
 
-    // Ollama variants
     map.insert(
-        "ollama",
+        Provider::Ollama,
         ProviderConfig {
             build_request: Arc::new(|req| build_ollama(req)),
-            parse_response: Arc::new(parse_ollama),
+            parser: Arc::new(OllamaParser),
             create_stream: Some(Arc::new(|resp, provider, user_prompt| {
                 create_ollama_stream(resp, provider, user_prompt)
             })),
@@ -62,22 +131,21 @@ pub fn provider_registry() -> HashMap<&'static str, ProviderConfig> {
     );
 
     map.insert(
-        "ollama-chat",
+        Provider::OllamaChat,
         ProviderConfig {
             build_request: Arc::new(|req| build_ollama_chat(req)),
-            parse_response: Arc::new(parse_openai_like),
+            parser: Arc::new(OllamaParser),
             create_stream: Some(Arc::new(|resp, provider, user_prompt| {
                 create_openai_stream(resp, provider, user_prompt)
             })),
         },
     );
 
-    // Other providers
     map.insert(
-        "anthropic",
+        Provider::Anthropic,
         ProviderConfig {
             build_request: Arc::new(|req| build_anthropic(req)),
-            parse_response: Arc::new(parse_anthropic),
+            parser: Arc::new(AnthropicParser),
             create_stream: Some(Arc::new(|resp, provider, user_prompt| {
                 create_anthropic_stream(resp, provider, user_prompt)
             })),
@@ -85,19 +153,19 @@ pub fn provider_registry() -> HashMap<&'static str, ProviderConfig> {
     );
 
     map.insert(
-        "cohere",
+        Provider::Cohere,
         ProviderConfig {
             build_request: Arc::new(|req| build_cohere(req)),
-            parse_response: Arc::new(parse_cohere),
+            parser: Arc::new(CohereParser),
             create_stream: None, // Cohere streaming not implemented yet
         },
     );
 
     map.insert(
-        "huggingface",
+        Provider::HuggingFace,
         ProviderConfig {
             build_request: Arc::new(|req| build_huggingface(req)),
-            parse_response: Arc::new(parse_huggingface),
+            parser: Arc::new(HuggingFaceParser),
             create_stream: None, // HuggingFace streaming not implemented yet
         },
     );
