@@ -20,8 +20,10 @@ use crate::ai::{
 
 use super::registry::ProviderConfig;
 
-type Sessions = Arc<tokio::sync::Mutex<HashMap<String, Vec<Message>>>>;
-
+/// [HTTP Request] → [Session Init] → [Agent Activation] → [Execute] → [Persist] → [Response]
+///
+/// [Raw Request] → [Station 1] → [Station 2] → [Station 3] → [Final Product]
+///
 pub trait SessionInitializer {}
 
 #[async_trait::async_trait]
