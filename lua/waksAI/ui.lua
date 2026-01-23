@@ -1,4 +1,113 @@
 -- ui.lua - Enhanced markdown-based UI with web-inspired styling
+
+
+--[[
+--
+  Rule of thumb for Neovim AI UI (critical)
+
+    You should not design a UI.
+
+    You should design 3 interaction surfaces only:
+
+    1. Input Surface
+
+      Where the user types
+
+      Inline or floating
+
+      Single responsibility
+
+    2. Output Surface
+
+      Streaming text
+
+      Diff / patch / explanation
+
+      Scrollable, read-only
+
+    3. Control Surface
+
+      Keymaps
+
+      Pickers
+
+      Minimal commands
+
+    If anything doesn’t fit one of these → it’s wrong.
+
+  From now on:
+
+    ❌ “Web-inspired”
+
+    ❌ Panels
+
+    ❌ Markdown tips
+
+    ❌ Animated thinking blocks
+
+    ❌ Tables in headers
+
+  Replace with:
+
+    Terminal-first, distraction-free, invisible UI
+
+  1️⃣ Output Surface (keep most of this)
+
+    Keep:
+
+       - render_user
+       - render_ai
+       - streaming logic
+       - markdown
+       - copy helpers
+
+    Remove / simplify:
+       - timestamps → optional, off by default
+       - emojis → keep max 2 (👤 🤖), remove rest
+       - headers → one simple header, once
+
+  2️⃣ Input Surface (change this)
+
+      Do NOT embed input inside the chat buffer.
+
+      Instead, do ONE of these (choose one):
+
+      Option A (recommended)
+         - Use vim.ui.input() for now
+         - Dead simple
+         - Zero UI bugs
+         - You can replace later
+
+          ```lua
+          vim.ui.input({ prompt = "WaksAI > " }, function(text)
+            if text and text ~= "" then
+              -- send to backend
+            end
+          end)
+          ```
+
+      Option B (next iteration)
+         - Separate floating buffer
+         - Single-purpose
+         - Closed after submit
+
+    🚫 Never mix input + output again.
+
+  After cleanup, this file should feel like:
+     - Less than 500 lines
+     - Boring
+     - Predictable
+     - Stable
+     - Fast
+
+  That’s how great Neovim plugins feel.
+
+  Users should say:
+
+  “It just works. I don’t notice the UI.”
+
+--]] --
+
 local state = require("waksAI.state")
 local M = {}
 

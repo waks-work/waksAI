@@ -1,10 +1,14 @@
 # waksAI Development Guide
 
 ## Quick Start
+
 ```bash
 ./scripts/setup.sh    # One-time setup
 ./scripts/dev.sh      # Start development
-./scripts/test.sh     # Run tests ```
+./scripts/test.sh     # Run tests 
+
+```
+
 ## Project Structure
  - lua/waksAI/ - Neovim plugin interface
  - rust/waks_ai_backend/ - AI processing backend
