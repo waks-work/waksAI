@@ -1,70 +1,76 @@
 local M = {}
-local history = require("waksAI.history")
+local api = require("waksAI.api")
+local state = require("waksAI.state")
 
--- Show diff and offer to apply. Will create a backup before applying.
--- bufnr: buffer number of the file to modify
--- new_content: string with the proposed new file content
--- ai_output: raw AI response (for logging), optional
--- on_apply: callback after apply
-function M.show_diff_and_apply(bufnr, new_content, ai_output, on_apply)
+---Show a side-by-side diff and offer to apply the changes.
+---@param bufnr number Buffer to modify
+---@param new_content string The full new content proposed by AI
+---@param description string? Optional description for the database log
+---@param on_apply fun()? Optional callback after applying
+function M.show_diff_and_apply(bufnr, new_content, description, on_apply)
   if not vim.api.nvim_buf_is_valid(bufnr) then
-    vim.notify("Invalid buffer for apply", vim.log.levels.ERROR)
+    vim.notify("WaksAI: Target buffer no longer exists.", vim.log.levels.ERROR)
     return
   end
 
   local filepath = vim.api.nvim_buf_get_name(bufnr)
-  -- Write new_content to temp file
-  local tmpfile = vim.fn.tempname() .. ".tmp"
+  local original_content = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), "\n")
+
+  -- Write new_content to a temporary file for the diff view
+  local tmpfile = vim.fn.tempname() .. "_" .. vim.fn.fnamemodify(filepath, ":t")
   local f = io.open(tmpfile, "w")
   if not f then
-    vim.notify("Failed to write temporary file for diff", vim.log.levels.ERROR)
+    vim.notify("WaksAI: Failed to create temp file for diff.", vim.log.levels.ERROR)
     return
   end
   f:write(new_content)
   f:close()
 
-  -- create a tab with left=original, right=tmpfile
+  -- Create a new tab for the diff review
   vim.cmd("tabnew")
   local left_win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(left_win, bufnr)
-  vim.cmd("vsplit " .. tmpfile)
+
+  -- Open the temp file on the right
+  vim.cmd("vertical diffsplit " .. tmpfile)
   local right_win = vim.api.nvim_get_current_win()
 
-  -- enable diff mode across both windows
-  vim.cmd("windo diffthis")
+  -- Visual polish for the diff tab
+  vim.wo[left_win].wrap = false
+  vim.wo[right_win].wrap = false
 
-  -- Ask user
-  vim.ui.select({ "Apply", "Cancel" }, { prompt = "Apply AI changes to file?" }, function(choice)
-    -- always cleanup diff and tmp even on cancel
+  -- Prompt the user
+  vim.ui.select({ "Apply", "Cancel" }, {
+    prompt = "Review AI Changes. Apply to " .. vim.fn.fnamemodify(filepath, ":p:.") .. "?"
+  }, function(choice)
     local function cleanup()
       pcall(function()
-        vim.cmd("diffoff!")
         vim.cmd("tabclose")
         os.remove(tmpfile)
       end)
     end
 
     if choice == "Apply" then
-      -- create backup before applying
-      pcall(function()
-        history.log_change(filepath, "AI edit", ai_output or "")
-      end)
+      -- 1. Sync the change to the Rust Backend (SQLite)
+      api.record_code_change(
+        filepath,
+        original_content,
+        new_content,
+        description or "AI automated refactor"
+      )
 
-      -- replace buffer contents
+      -- 2. Update the actual buffer
       local lines = vim.split(new_content, "\n")
       vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
 
-      if on_apply then pcall(on_apply) end
-      vim.notify("Applied AI changes to " .. (filepath or "buffer"), vim.log.levels.INFO)
+      if on_apply then on_apply() end
+      vim.notify("WaksAI: Changes applied successfully.", vim.log.levels.INFO)
       cleanup()
-      return
+    else
+      vim.notify("WaksAI: Changes discarded.", vim.log.levels.INFO)
+      cleanup()
     end
-
-    -- user cancelled
-    cleanup()
-    vim.notify("AI changes canceled", vim.log.levels.INFO)
   end)
 end
 
 return M
-

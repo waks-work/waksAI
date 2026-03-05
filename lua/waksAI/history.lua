@@ -1,4 +1,4 @@
--- waksAI/history.lua
+---@mod waksAI.history Help to load the history
 local api = require("waksAI.api")
 
 local M = {}
@@ -13,4 +13,3 @@ function M.load()
 end
 
 return M
-

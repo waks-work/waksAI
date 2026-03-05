@@ -1,7 +1,7 @@
 # WaksAI
 
-WaksAI is a full-stack AI chatbot system with a **Lua frontend** and **Rust backend**, designed for real-time interaction, AI processing, and smooth UI experience. It is modular, dynamic, and optimized for cross-platform use. This README contains **everything needed** to run, develop, and extend WaksAI in a single file.
-
+WaksAI is a text editor plugin built on top of neovim with features that allow for internal ai agents, ai 
+features and many other features inside neovim.
 ---
 
 ## Table of Contents
@@ -20,31 +20,25 @@ WaksAI is a full-stack AI chatbot system with a **Lua frontend** and **Rust back
 
 ## Features
 
-- Real-time AI chat interface  
-- Dynamic UI built with Lua  
-- Rust backend for AI logic, processing, and API handling  
-- Modular architecture: UI, input, state management, backend communication  
-- Cross-platform: Linux, Windows, macOS  
-- Session management with automatic context preservation  
-- Easy extension for new AI models or features  
+ - Agentic mode for users inside neovim.
+ - Code generation and code edit all inside neovim.
+ - Inline and ai chat completion.
+ - Allow us to use mutiple models and providers.
+ - Intergrate well with external agentic models.
 
 ---
 
 ## Requirements
 
 ### Lua Frontend
-- Lua 5.4+  
-- Lua runtime (Love2D optional)  
-- No additional dependencies  
+We use lua for our user interface and user experience inside neovim.
 
 ### Rust Backend
-- Rust 1.70+ with Cargo  
-- Recommended: stable toolchain  
+We use rust extensively in our backend handling communications between frontend,
+ai backend that handles communication with the ai.
 
 ### System
-- Linux, Windows, or macOS  
-- Terminal or GUI environment  
-- Network access for optional model updates  
+Systems and environment supported currrently are environment that neovim currently runs on.
 
 ---
 
@@ -53,8 +47,9 @@ WaksAI is a full-stack AI chatbot system with a **Lua frontend** and **Rust back
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/waksAI.git
+git clone https://github.com/waks-work/waksAI.git
 cd waksAI
+
 ```
 
 ### 2. Build Rust backend
@@ -112,24 +107,20 @@ Command	Description
 Development Notes
 ### Frontend
 
- - init.lua – Main entry point
- - ui.lua – Chat interface & rendering
- - input.lua – User input handling
- - state.lua – Session/context management
- - api.lua – Communicates with backend
- - history.lua - Checks the history
- - context.lua - Checks context of functions to include in prompt send 
- - edit.lua - allows editting of code in the file 
+ - init.lua – Main entry point into our project
+ - ui/ – Chat interface & rendering, inline, events, etc.
+ - state/ – Session/context management
+ - api/ – Communicates with backend and handle our api interface.
+ - history/ - Checks the history and our database communication.
+ - context/ - handle all the ai context. 
+ - edit/ - allows editting of code editing to happen.
 
 ### Backend
 
- -> main.rs – AI logic & server
-
- -> Cargo.toml – Dependencies and Rust package
-
- -> Running in Debug Mode
- 
- -> We run models locally as of now and is ready for upgrade 
+ -> main.rs – Entry point of our project.
+ -> ai/ - handles all the ai tasks.
+ -> storage/ - handle all our storage methods
+ -> communication/ - handle communication between components. 
 
 ```bash
 # Backend
@@ -142,30 +133,17 @@ lua waksAI/init.lua
 Modular design allows adding new commands, UI elements, and AI logic easily
 
 ## Extending AI Models
-Add new models in backend Rust logic
-
-Update API functions in api.lua
-
-Use /model <name> to switch dynamically
+Check out: [extending features](docs/EXTENDING.md) for more information.
 
 ## Contributing
-Fork the repository
-
-Create a feature branch: git checkout -b feature-name
-
-Commit changes: git commit -am 'Add feature'
-
-Push branch: git push origin feature-name
-
-Open a pull request
+Check out; [contributing](/docs/CONTRIBUTING.md) for more information.
 
 ## License
-WaksAI is released under the MIT License. See LICENSE file for details.
+We are currently under an MIT License.
 
-Developed with ❤️ by the WaksAI Team
+---
 
 ```yaml
----
 
 waks
 

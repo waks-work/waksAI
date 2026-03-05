@@ -126,7 +126,7 @@ where
             prompt_manager.add_prompt(&session_id, response_prompt).await;
         }
 
-        end_session(&session_manager, &session_id);
+        end_session(&session_manager, &session_id).await;
     })
 }
 

@@ -8,7 +8,7 @@ use crate::{
         session::{PromptManager, SessionManager},
         state::AppState,
     },
-    communication,
+    communication, handlers,
     storage::{db, state::StrongHandle},
 };
 
@@ -40,11 +40,13 @@ pub async fn run_server() {
     let app = Router::new()
         .route("/generate", post(generate))
         .route("/stream", post(stream_generate))
-        .with_state(state)
-        .with_state(session_manager.clone())
-        .with_state(prompt_manager.clone());
-
+        // These link the Lua calls to your db.rs logic
+        .route("/activity", post(handlers::handle_record_activity))
+        .route("/code_change", post(handlers::handle_code_change))
+        .route("/session_status", post(handlers::handle_session_status))
+        .with_state(state);
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 11500));
+
     info!("waksAI backend running on http://{}", addr);
 
     let listener = match tokio::net::TcpListener::bind(addr).await {

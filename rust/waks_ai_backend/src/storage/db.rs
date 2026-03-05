@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqlitePoolOptions, FromRow, SqlitePool};
 use std::{fs, path::Path};
 
-// db pool
+/// Global database pool initialized once at start up.
 static POOL: OnceCell<SqlitePool> = OnceCell::new();
+
 type DbResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 // db models
@@ -247,4 +248,43 @@ pub async fn get_frontend_activities(session_id: &str) -> DbResult<Vec<FrontendA
     .fetch_all(get_pool())
     .await?;
     Ok(rows)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_database_flow() {
+        let pool = SqlitePoolOptions::new()
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+
+        sqlx::query("CREATE TABLE ai_session_status (session_id TEXT PRIMARY KEY, ai_model TEXT, provider TEXT, status TEXT)")
+            .execute(&pool).await.unwrap();
+
+        sqlx::query("CREATE TABLE frontend_activity (activity_id INTEGER PRIMARY KEY, session_id TEXT, action TEXT, payload TEXT)")
+            .execute(&pool).await.unwrap();
+
+        let res = sqlx::query("INSERT INTO ai_session_status (session_id, ai_model, provider, status) VALUES (?, ?, ?, ?)")
+            .bind("test_session_1")
+            .bind("llama3")
+            .bind("ollama")
+            .bind("active")
+            .execute(&pool).await;
+
+        assert!(res.is_ok());
+
+        let res = sqlx::query(
+            "INSERT INTO frontend_activity (session_id, action, payload) VALUES (?, ?, ?)",
+        )
+        .bind("test_session_1")
+        .bind("Multimeter Trace")
+        .bind("3.3V stable on VCC rail")
+        .execute(&pool)
+        .await;
+
+        assert!(res.is_ok());
+    }
 }

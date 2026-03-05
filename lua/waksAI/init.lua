@@ -1,108 +1,78 @@
--- Updated init.lua integration
-local M = {}
-local config = require("waksAI.config")
-local ui = require("waksAI.ui")
-local api = require("waksAI.api")
-local state = require("waksAI.state")
-local utils = require("waksAI.utils")
-local picker = require("waksAI.picker")
+---@mod waksAI Main Entry Point
+---@brief Integrated AI Assistant for Neovim with dynamic provider support.
+local M      = {}
 
+-- Internal Module Imports
+local state  = require("waksAI.state")
+local ui     = require("waksAI.ui")
+local api    = require("waksAI.api")
+local utils  = require("waksAI.utils")
+local picker = require("waksAI.picker")
+local inline = require("waksAI.code_change")
+
+---Initializes the plugin and merges user configuration.
+---@param opts table? Configuration options
 function M.setup(opts)
+  -- 1. Initialize Global State
   state.setup(opts or {})
 
-  -- Setup UI with web-inspired theme
+  -- 2. Initialize UI Components
   ui.setup({
-    width = 70,
-    position = "right",
-    show_timestamps = true,
+    width             = 70,
+    position          = "right",
+    show_timestamps   = true,
     show_session_info = true,
-    theme = {
+    theme             = {
       background = "#1e1e2e",
       foreground = "#cdd6f4",
-      accent = "#89b4fa",
-      secondary = "#7f849c",
-      success = "#a6e3a1",
-      warning = "#f9e2af",
-      error = "#f38ba8",
-      code_bg = "#181825",
-      border = "#313244",
+      accent     = "#89b4fa",
+      secondary  = "#7f849c",
+      success    = "#a6e3a1",
+      warning    = "#f9e2af",
+      error      = "#f38ba8",
+      code_bg    = "#181825",
+      border     = "#313244",
     }
   })
+
+  -- 3. Register Global Keymaps
+  M.keymaps()
+
+  -- 4. Initial Hardware/Highlight setup
+  inline:init()
 end
 
--- Enhanced open function with full UI
---[[ function M.prompt()
-  ui.open_chat()
-
-  -- Start the input mode and get a callback function
-  local get_input = ui.start_input_mode()
-
-  -- Set up a watcher to check for input
-  local function check_input()
-    vim.defer_fn(function()
-      local user_text = get_input()
-      if user_text then
-        -- We have input, process it
-        ui.render_user(user_text)
-        ui.render_thinking("Processing your request...")
-
-        api.send(user_text, function(ai_text, code_blocks)
-          ui.clear_loading()
-          ui.render_ai(ai_text)
-
-          if code_blocks and #code_blocks > 0 then
-            for _, cb in ipairs(code_blocks) do
-              ui.render_ai(cb.code, { is_code = true, lang = cb.lang })
-            end
-          end
-
-          -- Update session history
-          table.insert(state.session.history, { role = "user", content = user_text })
-          table.insert(state.session.history, { role = "assistant", content = ai_text })
-
-          -- Restart input mode for next message
-          M.prompt()
-        end)
-      else
-        -- No input or cancelled, just keep watching
-        check_input()
-      end
-    end, 500) -- Check every 500ms
-  end
-
-  check_input()
-end ]]
-
+---Opens the chat window and prompts for user input.
 function M.prompt()
   ui.open_chat()
-  vim.ui.input({ 
-    prompt = "You: ",
+  vim.ui.input({
+    prompt  = "You: ",
     default = ""
   }, function(user_text)
     if not user_text or user_text == "" then return end
-    
+
     ui.render_user(user_text)
     ui.render_thinking("Processing your request...")
-    
+
     api.send(user_text, function(ai_text, code_blocks)
       ui.clear_loading()
       ui.render_ai(ai_text)
-      
+
       if code_blocks and #code_blocks > 0 then
         for _, cb in ipairs(code_blocks) do
           ui.render_ai(cb.code, { is_code = true, lang = cb.lang })
         end
       end
-      
-      -- Update session history
+
+      -- Update session history for context retention
       table.insert(state.session.history, { role = "user", content = user_text })
       table.insert(state.session.history, { role = "assistant", content = ai_text })
     end)
   end)
 end
 
-
--- Enhanced visual selection with context
+---Sends visually selected text to the AI for explanation or refactoring.
+---@note(waks-work): In need of major fixing for betterment of society.
 function M.explain_visual()
   ui.open_chat()
 
@@ -127,16 +97,22 @@ function M.explain_visual()
       end
     end
 
-    -- Update history
     table.insert(state.session.history, { role = "user", content = prompt })
     table.insert(state.session.history, { role = "assistant", content = ai_text })
   end)
 end
 
--- Toggle model with notification
+---Cycles through available models and notifies the user.
 function M.toggle_model()
   local next_model = state.cycle_model()
   ui.render_system("Model switched to: " .. next_model, "success")
+end
+
+---Clears the current chat session buffer and history.
+function M.clear_history()
+  state.session.history = {}
+  ui.clear_chat()
+  ui.render_system("Chat history cleared", "success")
 end
 
 -- Render chat history
@@ -150,23 +126,24 @@ function M.render_history()
   end
 end
 
--- Clear chat history
-function M.clear_history()
-  state.session.history = {}
-  ui.clear_chat()
-  ui.render_system("Chat history cleared", "success")
-end
-
--- Keymaps with better descriptions
 function M.keymaps()
-  vim.keymap.set("n", "<leader>wa", M.open, { desc = "WaksAI: Open chat window" })
-  vim.keymap.set("n", "<leader>ws", M.prompt, { desc = "WaksAI: Send prompt" })
-  vim.keymap.set("v", "<leader>wv", M.explain_visual, { desc = "WaksAI: Explain selection" })
-  vim.keymap.set("n", "<leader>wm", M.toggle_model, { desc = "WaksAI: Toggle model" })
-  vim.keymap.set("n", "<leader>wc", M.clear_history, { desc = "WaksAI: Clear history" })
-  vim.keymap.set("n", "<leader>wp", picker.switch_provider, { desc = "WaksAI: Switch provider" })
-  vim.keymap.set("n", "<leader>wM", picker.switch_model, { desc = "WaksAI: Switch model" })
-  vim.keymap.set("n", "<leader>wr", picker.register_model, { desc = "WaksAI: Register model" })
+  local n = "n"
+  local v = "v"
+
+  -- Chat UI Controls
+  vim.keymap.set(n, "<leader>ws", M.prompt, { desc = "WaksAI: Send prompt" })
+  vim.keymap.set(v, "<leader>wv", M.explain_visual, { desc = "WaksAI: Explain selection" })
+  vim.keymap.set(n, "<leader>wc", M.clear_history, { desc = "WaksAI: Clear history" })
+
+  -- Model & Provider Management (Pickers)
+  vim.keymap.set(n, "<leader>wp", picker.switch_provider, { desc = "WaksAI: Switch provider" })
+  vim.keymap.set(n, "<leader>wM", picker.switch_model, { desc = "WaksAI: Switch model" })
+  vim.keymap.set(n, "<leader>wr", picker.register_model, { desc = "WaksAI: Register model" })
+
+  -- Inline AI (Ghost Text)
+  vim.keymap.set({ n, v }, "<leader>ai", function()
+    inline:get_suggestions_for_selection()
+  end, { desc = "WaksAI: Inline suggestion" })
 end
 
 -- Commands
@@ -175,13 +152,5 @@ vim.api.nvim_create_user_command("WaksAIAsk", function(opts)
     vim.notify("AI: " .. reply, vim.log.levels.INFO)
   end)
 end, { nargs = "+" })
-
-vim.api.nvim_create_user_command("WaksAIChat", function()
-  M.open()
-end, {})
-
-vim.api.nvim_create_user_command("WaksAIClear", function()
-  M.clear_history()
-end, {})
 
 return M

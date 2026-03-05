@@ -43,7 +43,7 @@ pub struct OllamaStreamResponse {
     pub done: bool,
 }
 
-// -------- Helpers --------
+/// Accepts the user input and builds the prompt for the llm
 pub fn build_legacy_prompt(messages: &[Message]) -> String {
     messages
         .iter()
@@ -52,8 +52,7 @@ pub fn build_legacy_prompt(messages: &[Message]) -> String {
         .join("\n")
 }
 
-// Builders
-//----------------------------------------------------
+/// Builds all the prompts for all providers with same llm structure as openai.
 pub fn build_openai_like(
     url: &str,
     provider: &str,
@@ -77,6 +76,7 @@ pub fn build_openai_like(
     ))
 }
 
+/// Builds all the prompts for local models.
 pub fn build_ollama(
     req: &GenerateReq,
 ) -> Result<(String, Vec<(String, String)>, serde_json::Value), (StatusCode, String)> {
