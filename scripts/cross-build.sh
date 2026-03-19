@@ -19,12 +19,4 @@ if [ -f "Cargo.toml" ] && [ -f "CMakeLists.txt" ]; then
     exit 0
 fi
 
-# Rust + Python projects
-if [ -f "Cargo.toml" ] && [ -f "pyproject.toml" ]; then
-    echo "🔗 Building Rust + Python bindings..."
-    cargo build --release
-    maturin develop 2>/dev/null || echo "⚠️ Install maturin for Python bindings: pip install maturin"
-    exit 0
-fi
-
 echo " No cross-language build configuration detected"

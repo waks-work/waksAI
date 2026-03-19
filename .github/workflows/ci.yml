@@ -16,6 +16,10 @@ jobs:
           cd rust/waks_ai_backend
           cargo test
           cargo clippy -- -D warnings
+      - name: Check Formatting
+        run: |
+          cd rust/waks_ai_backend
+          cargo fmt -- --check
 
   lua-plugin:
     runs-on: ubuntu-latest  

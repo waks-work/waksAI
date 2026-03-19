@@ -119,6 +119,7 @@ pub fn provider_registry() -> HashMap<Provider, ProviderConfig> {
         );
     }
 
+    // NOTE(waks-work): Add grok support
     map.insert(
         Provider::Ollama,
         ProviderConfig {

@@ -1,7 +1,6 @@
 #!/bin/bash
-# scripts/detect-stack.sh
 
-echo "🔍 Detecting Waks development stack..."
+echo "Detecting Waks development stack..."
 
 [ -f "Cargo.toml" ] && echo "🦀 Rust project"
 [ -f "CMakeLists.txt" ] && echo "🔧 C/C++ project" 
@@ -13,4 +12,4 @@ echo "🔍 Detecting Waks development stack..."
 ([ -f "Cargo.toml" ] && [ -f "CMakeLists.txt" ]) && echo "🔗 Rust + C/C++ cross-language"
 ([ -f "Cargo.toml" ] && [ -f "package.json" ]) && echo "🔗 Rust + TypeScript full-stack"
 
-echo "✅ Stack detection complete"
+echo "Stack detection complete"

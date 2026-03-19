@@ -11,6 +11,8 @@ rust/waks_ai_backend/Cargo.lock
 *.swp
 *.swo
 
+*.waksai.json
+
 <<<<<<< HEAD
 assets/
 =======

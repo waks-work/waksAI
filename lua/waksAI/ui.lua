@@ -1,279 +1,411 @@
----@mod waksAI.ui Ephemeral Inline UI Engine
----@brief Manages virtual text overlays, streaming animations, and
----user input.local state = require("waksAI.state")
+---@mod waksAI.ui Enhanced Inline UI with > Prefix Overlays
+---@brief Manages virtual text overlays with markdown rendering and collapsible responses
 
 local state = require("waksAI.state")
+local bridge = require("bridge")
 local M = {}
 
 ---@class WaksUIConfig
----@field overlay_prefix string The string prepended to virtual lines
----@field show_thinking boolean Whether to show the spinner
----@field streaming boolean Enable/disable chunked rendering
----@field thinking_frames string[] List of characters for animation
----@field thinking_speed integer Animation delay in ms
+---@field overlay_prefix string The prefix for AI lines (default: " > ")
+---@field show_thinking boolean Whether to show spinner
+---@field max_inline_lines number Maximum lines before auto-collapse
+---@field thinking_frames string[] Animation frames
 ---@field icons table<string, string> UI symbols
 M.config = {
-  overlay_prefix = " > ",
-  show_thinking = true,
-  streaming = true,
+    overlay_prefix = " > ",
+    show_thinking = true,
+    max_inline_lines = 10, -- Collapse if response > 10 lines
 
-  thinking_frames = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
-  thinking_speed = 80,
-  streaming_speed = 25,
+    thinking_frames = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
+    thinking_speed = 80,
 
-  icons = {
-    user = "👤",
-    ai = "🤖",
-    thinking = "💭",
-  },
+    icons = {
+        user = "👤",
+        ai = "🤖",
+        thinking = "💭",
+        collapsed = "▶",
+        expanded = "▼",
+    },
 }
 
--- ===================================
--- 📍 INLINE OVERLAY RENDERING
--- ===================================
+-- Internal state
+M.overlay_state = {
+    ns = nil,                 -- Namespace for extmarks
+    current_line = nil,       -- Line number where overlay is shown
+    response_text = "",       -- Accumulated AI response
+    is_thinking = false,      -- Thinking animation active
+    thinking_timer = nil,     -- Timer handle
+    is_collapsed = false,     -- Response collapsed state
+    full_response_lines = {}, -- Full response (for expanding)
+}
 
----Renders raw lines as virtual text using extmarks
----@param line_num integer The 0-indexed line to attach to
----@param response_lines string[] The content to display
----@return integer # The namespace ID used
-function M.render_inline_response(line_num, response_lines)
-  local buf = vim.api.nvim_get_current_buf()
-  local ns = vim.api.nvim_create_namespace("waksai_inline")
+-- ============================================================================
+-- NAMESPACE & HIGHLIGHTS
+-- ============================================================================
 
-  -- Clear any existing overlays in this specific namespace
-  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+function M.setup_highlights()
+    bridge.set_highlight("AIThinking", { fg = "#7f849c", italic = true })
+    bridge.set_highlight("AIOverlay", { fg = "#89b4fa", italic = true })
+    bridge.set_highlight("AIOverlayCode", { fg = "#cba6f7", bg = "#181825" })
+    bridge.set_highlight("AIAction", { fg = "#a6e3a1", bold = true })
+end
 
-  local virt_lines = {}
-  for _, line in ipairs(response_lines) do
+function M.get_or_create_namespace()
+    if not M.overlay_state.ns then
+        M.overlay_state.ns = bridge.get_namespace_id("waksai_inline_overlay")
+    end
+    return M.overlay_state.ns
+end
+
+-- ============================================================================
+-- THINKING ANIMATION
+-- ============================================================================
+
+---Start thinking spinner at cursor line
+function M.show_thinking()
+    local line_num = bridge.get_cursor_position() -- O-indexed
+    M.overlay_state.current_line = line_num
+    M.overlay_state.is_thinking = true
+
+    M.animate_thinking(line_num)
+end
+
+---Thinking spinner loop
+---@param line_num number
+function M.animate_thinking(line_num)
+    --- @note(waks-work): fix this and ensure the timer works as expected.
+    local frame = 1
+    local timer = vim.loop.new_timer()
+    M.overlay_state.thinking_timer = timer
+
+    timer:start(0, M.config.thinking_speed, vim.schedule_wrap(function()
+        if not M.overlay_state.is_thinking then
+            timer:stop()
+            timer:close()
+            return
+        end
+
+        local spinner = M.config.thinking_frames[frame]
+        local virt_lines = {
+            { { M.config.overlay_prefix .. "// 🤖 Thinking... [" .. spinner .. "]", "AIThinking" } }
+        }
+
+        M.render_virtual_lines(line_num, virt_lines)
+        frame = (frame % #M.config.thinking_frames) + 1
+    end))
+end
+
+function M.stop_thinking()
+    M.overlay_state.is_thinking = false
+    if M.overlay_state.thinking_timer then
+        M.overlay_state.thinking_timer:stop()
+        M.overlay_state.thinking_timer:close()
+        M.overlay_state.thinking_timer = nil
+    end
+end
+
+-- ============================================================================
+-- VIRTUAL TEXT RENDERING
+-- ============================================================================
+
+---Render virtual lines at a specific line number
+---@param line_num number 0-indexed line
+---@param virt_lines table[] Array of line chunks
+function M.render_virtual_lines(line_num, virt_lines)
+    local buf = bridge.get_current_buffer()
+
+    local ns = M.get_or_create_namespace()
+
+    bridge.clear_ovelay(buf, ns)
+    bridge.set_virtual_text(buf, ns, line_num, virt_lines)
+end
+
+-- ============================================================================
+-- MARKDOWN PARSING & RENDERING
+-- ============================================================================
+
+--- @note(waks-work): relook carefully at this logic and make sure it works.
+---Parse markdown and create formatted virtual lines
+---@param text string Raw AI response
+---@return table[] Virtual line chunks
+function M.parse_markdown_to_virt_lines(text)
+    local virt_lines = {}
+    local in_code_block = false
+    local code_lang = ""
+
+    -- Header line
     table.insert(virt_lines, {
-      { M.config.overlay_prefix .. line, "Comment" }
+        { M.config.overlay_prefix .. "// 🤖 Response", "AIOverlay" }
     })
-  end
+    table.insert(virt_lines, {
+        { M.config.overlay_prefix, "AIOverlay" }
+    })
 
-  vim.api.nvim_buf_set_extmark(buf, ns, line_num, 0, {
-    virt_lines = virt_lines,
-    virt_lines_above = false,
-  })
-
-  return ns
-end
-
----Displays the animated thinking spinner
----@param line_num integer
-function M.render_thinking(line_num)
-  local response_lines = {
-    "// " .. M.config.icons.thinking .. " Thinking... [⠋]",
-  }
-
-  local ns = M.render_inline_response(line_num, response_lines)
-
-  if M.config.show_thinking then
-    M.animate_thinking(line_num, ns)
-  end
-
-  return ns
-end
-
----Logic for the spinner loop
----@param line_num integer
----@param ns integer
-function M.animate_thinking(line_num, ns)
-  local frame = 1
-  local timer = vim.loop.new_timer()
-  state.thinking_timer = timer
-
-  timer:start(0, M.config.thinking_speed, vim.schedule_wrap(function()
-    -- Safety check: stop if thinking finished or buffer is gone
-    if not state.is_thinking or not vim.api.nvim_buf_is_valid(0) then
-      if not timer:is_closing() then
-        timer:stop()
-        timer:close()
-      end
-      return
+    for _, line in ipairs(vim.split(text, "\n")) do
+        -- Code block detection
+        if line:match("^```") then
+            in_code_block = not in_code_block
+            if in_code_block then
+                code_lang = line:match("^```(%w*)")
+                table.insert(virt_lines, {
+                    { M.config.overlay_prefix .. "```" .. (code_lang or ""), "AIOverlayCode" }
+                })
+            else
+                table.insert(virt_lines, {
+                    { M.config.overlay_prefix .. "```", "AIOverlayCode" }
+                })
+            end
+        elseif in_code_block then
+            table.insert(virt_lines, {
+                { M.config.overlay_prefix .. line, "AIOverlayCode" }
+            })
+        else
+            -- Regular markdown (bold, bullets, etc.)
+            local chunks = M.parse_markdown_inline(line)
+            table.insert(virt_lines, chunks)
+        end
     end
 
-    local spinner = M.config.thinking_frames[frame]
-    local response_lines = {
-      "// " .. M.config.icons.thinking .. " Thinking... [" .. spinner .. "]",
+    -- Action hints
+    table.insert(virt_lines, {
+        { M.config.overlay_prefix, "AIOverlay" }
+    })
+    table.insert(virt_lines, {
+        { M.config.overlay_prefix .. "[Tab: Insert] [Esc: Dismiss]", "AIAction" }
+    })
+
+    return virt_lines
+end
+
+---Parse inline markdown (bold, bullets)
+---@param line string
+---@return table[] Chunks with highlights
+function M.parse_markdown_inline(line)
+    -- Simple implementation - can be enhanced
+    local chunks = {}
+
+    -- Check for bullets
+    if line:match("^%s*[•·-]") then
+        table.insert(chunks, { M.config.overlay_prefix .. line, "AIOverlay" })
+        -- Check for bold **text**
+    elseif line:match("%*%*(.-)%*%*") then
+        -- This is simplified - proper parsing would split and highlight
+        table.insert(chunks, { M.config.overlay_prefix .. line, "AIOverlay" })
+    else
+        table.insert(chunks, { M.config.overlay_prefix .. line, "AIOverlay" })
+    end
+
+    return chunks
+end
+
+-- ============================================================================
+-- STREAMING RESPONSE
+-- ============================================================================
+
+---Start streaming AI response
+function M.start_streaming_response()
+    local line_num = vim.api.nvim_win_get_cursor(0)[1] - 1
+    M.overlay_state.current_line = line_num
+    M.overlay_state.response_text = ""
+    M.overlay_state.full_response_lines = {}
+    M.overlay_state.is_collapsed = false
+
+    M.show_thinking()
+end
+
+---Update response with new chunk
+---@param chunk string
+function M.stream_chunk(chunk)
+    M.stop_thinking()
+    M.overlay_state.response_text = M.overlay_state.response_text .. chunk
+
+    -- Parse and render
+    local virt_lines = M.parse_markdown_to_virt_lines(M.overlay_state.response_text)
+    M.overlay_state.full_response_lines = virt_lines
+
+    -- Auto-collapse if too long
+    if #virt_lines > M.config.max_inline_lines then
+        M.show_collapsed_response()
+    else
+        M.render_virtual_lines(M.overlay_state.current_line, virt_lines)
+    end
+end
+
+---Complete streaming
+function M.complete_response()
+    M.stop_thinking()
+    -- Final render is already done in stream_chunk
+end
+
+-- ============================================================================
+-- COLLAPSIBLE RESPONSES
+-- ============================================================================
+
+---Show collapsed summary (for long responses)
+function M.show_collapsed_response()
+    M.overlay_state.is_collapsed = true
+
+    local summary_lines = {
+        { M.config.overlay_prefix .. "// 🤖 Response [" .. #M.overlay_state.full_response_lines .. " lines]", "AIOverlay" },
+        { M.config.overlay_prefix, "AIOverlay" },
+        { M.config.overlay_prefix .. M.config.icons.collapsed .. " Press → to expand", "AIAction" },
+        { M.config.overlay_prefix, "AIOverlay" },
+        { M.config.overlay_prefix .. "[Tab: Insert] [Esc: Dismiss]", "AIAction" },
     }
 
-    M.render_inline_response(line_num, response_lines)
-    frame = (frame % #M.config.thinking_frames) + 1
-  end))
+    M.render_virtual_lines(M.overlay_state.current_line, summary_lines)
 end
 
----Initializes the overlay state for a new AI call
----@param line_num integer
-function M.render_ai_start(line_num)
-  state.is_thinking = true
-  state.ai_overlay_line = line_num
-  state.ai_current_content = ""
-  state.ai_namespace = M.render_thinking(line_num)
+---Expand collapsed response
+function M.expand_response()
+    if M.overlay_state.is_collapsed then
+        M.overlay_state.is_collapsed = false
+        M.render_virtual_lines(
+            M.overlay_state.current_line,
+            M.overlay_state.full_response_lines
+        )
+    end
 end
 
----Updates the overlay with new text chunks
----@param chunk string
-function M.render_ai_stream(chunk)
-  if not state.ai_overlay_line then return end
-
-  state.is_thinking = false
-  state.ai_current_content = (state.ai_current_content or "") .. chunk
-
-  local buf = vim.api.nvim_get_current_buf()
-  local ns = state.ai_namespace or vim.api.nvim_create_namespace("waksai_inline")
-
-  local response_lines = { "// " .. M.config.icons.ai .. " Response", "" }
-
-  for _, line in ipairs(vim.split(state.ai_current_content, "\n")) do
-    table.insert(response_lines, line)
-  end
-
-  table.insert(response_lines, "")
-  table.insert(response_lines, "[Tab: Insert] [Esc: Dismiss]")
-
-  M.render_inline_response(state.ai_overlay_line, response_lines)
+---Collapse expanded response
+function M.collapse_response()
+    if not M.overlay_state.is_collapsed then
+        M.show_collapsed_response()
+    end
 end
 
----Finalizes the UI state
-function M.render_ai_complete()
-  state.is_thinking = false
-  if state.thinking_timer then
-    state.thinking_timer:stop()
-    state.thinking_timer:close()
-    state.thinking_timer = nil
-  end
-end
+-- ============================================================================
+-- ACCEPTING/DISMISSING
+-- ============================================================================
 
----Cleans the buffer for all inline AI overlays.
-function M.clear_overlay()
-  local buf = vim.api.nvim_get_current_buf()
-  local ns = state.ai_namespace or vim.api.nvim_create_namespace("waksai_inline")
-
-  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
-
-  state.ai_overlay_line = nil
-  state.ai_current_content = nil
-  state.is_thinking = false
-end
-
----Commits the AI suggestion to the actual buffer text
+---Accept AI suggestion and insert into buffer
 function M.accept_suggestion()
-  if not state.ai_current_content then return end
+    if not M.overlay_state.response_text then return end
 
-  local buf = vim.api.nvim_get_current_buf()
-  local line_num = state.ai_overlay_line or vim.api.nvim_win_get_cursor(0)[1]
+    local buf = bridge.get_current_buffer()
+    local line_num = bridge.get_cursor_position()
 
-  local code_lines = {}
-  local in_code_block = false
+    -- Extract code from markdown
+    local code_lines = M.extract_code_from_response(M.overlay_state.response_text)
 
-  -- Logic to extract content inside ``` markdown blocks
-  for _, line in ipairs(vim.split(state.ai_current_content, "\n")) do
-    if line:match("^```") then
-      in_code_block = not in_code_block
-    elseif in_code_block then
-      table.insert(code_lines, line)
+    if #code_lines > 0 then
+        --- @note(waks-work): check this out and create a wrapper around it.
+        vim.api.nvim_buf_set_lines(buf, line_num + 1, line_num + 1, false, code_lines)
+        local level_id = bridge.get_log_level("info")
+        bridge.notify("✅ AI suggestion inserted", level_id)
     end
-  end
 
-  if #code_lines == 0 then
-    code_lines = vim.split(state.ai_current_content, "\n")
-  end
-
-  vim.api.nvim_buf_set_lines(buf, line_num, line_num, false, code_lines)
-  M.clear_overlay()
-end
-
----@note(waks-work): Is still unused.
----@param callback fun(...)
-function M.get_user_input(callback)
-  vim.ui.input({
-    prompt = "WaksAI > ",
-    default = "",
-  }, function(text)
-    if text and text ~= "" then
-      callback(text)
-    end
-  end)
-end
-
----@note(waks-work): This keybinds may change and may need to be updated
----so as to meet our requirements and the specific keymap rules we will follow.
----will be done more on init.lua file.
-function M.setup_keymaps()
-  -- Accept AI suggestion
-  vim.keymap.set('n', '<Tab>', function()
-    if state.ai_current_content then
-      M.accept_suggestion()
-    end
-  end, { desc = "Accept AI suggestion" })
-
-  -- Dismiss overlay
-  vim.keymap.set('n', '<Esc>', function()
     M.clear_overlay()
-  end, { desc = "Dismiss AI overlay" })
-
-  -- Trigger AI inline
-  vim.keymap.set('n', '<leader>ai', function()
-    local line_num = vim.api.nvim_win_get_cursor(0)[1] - 1
-
-    M.get_user_input(function(prompt)
-      -- This would call your backend
-      -- For now, just show thinking
-      M.render_ai_start(line_num)
-
-      -- Example: simulate response after 1 second
-      vim.defer_fn(function()
-        M.render_ai_stream("```rust\nlet example = 42;\n```")
-        M.render_ai_complete()
-      end, 1000)
-    end)
-  end, { desc = "Ask AI (inline)" })
-
-  -- Copy last code block helper
-  vim.keymap.set('n', 'yc', function()
-    if state.ai_current_content then
-      vim.fn.setreg('+', state.ai_current_content)
-      vim.notify("AI response copied", vim.log.levels.INFO)
-    end
-  end, { desc = "Copy AI response" })
 end
 
+---Extract code blocks from markdown
+---@param text string
+---@return string[]
+function M.extract_code_from_response(text)
+    local code_lines = {}
+    local in_code_block = false
+
+    for _, line in ipairs(bridge.split_strings(text, "\n", true)) do
+        if line:match("^```") then
+            in_code_block = not in_code_block
+        elseif in_code_block then
+            table.insert(code_lines, line)
+        end
+    end
+
+    -- If no code blocks found, return entire response
+    if #code_lines == 0 then
+        code_lines = bridge.split_strings(text, "\n", true)
+    end
+
+    return code_lines
+end
+
+---Clear overlay and reset state
+function M.clear_overlay()
+    local buf = bridge.get_current_buffer()
+    local ns = M.get_or_create_namespace()
+
+    bridge.clear_overlay(buf, ns)
+
+    M.stop_thinking()
+    M.overlay_state.current_line = nil
+    M.overlay_state.response_text = ""
+    M.overlay_state.full_response_lines = {}
+    M.overlay_state.is_collapsed = false
+end
+
+-- ============================================================================
+-- KEYMAPS
+-- ============================================================================
+
+function M.setup_keymaps()
+    -- Accept suggestion
+    bridge.set_keymap('n', 'Tab', function()
+        if M.overlay_state.response_text ~= "" then
+            M.accept_suggestion()
+        end
+    end, { desc = "WaksAI: Accept suggestion" })
+    -- Dismiss overlay
+    bridge.set_keymap('n', '<Esc>', function()
+        M.clear_overlay()
+    end, { desc = "WaksAI: Dismiss overlay" })
+
+    -- Expand/collapse
+    bridge.set_keymap('n', '<Right>', function()
+        M.expand_response()
+    end, { desc = "WaksAI: Expand response" })
+
+    bridge.set_keymap('n', '<Left>', function()
+        M.collapse_response()
+    end, { desc = "WaksAI: Collapse response" })
+
+    -- Copy response
+    bridge.set_keymap('n', 'yc', function()
+        if M.overlay_state.response_text ~= "" then
+            --- @note(waks-work): create a fix wrapper for this vim api
+            vim.fn.setreg('+', M.overlay_state.response_text)
+            bridge.notify("📋 AI response copied", bridge.get_log_level("info"))
+        end
+    end, { desc = "WaksAI: Copy AI response" })
+end
+
+-- ============================================================================
+-- SETUP & COMPATIBILITY
+-- ============================================================================
+
+---Initialize UI module
 ---@param opts WaksUIConfig?
 function M.setup(opts)
-  M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+    M.config = bridge.merge_tables(M.config, opts or {})
+    M.setup_highlights()
+    M.setup_keymaps()
+    M.get_or_create_namespace()
 end
 
--- Alias for opening the input (since you don't have a chat window yet)
-function M.open_chat()
-  -- This is a placeholder since your current UI is inline only
-  -- We can just notify or trigger the input directly
-  vim.notify("WaksAI: Inline Mode Active", vim.log.levels.INFO)
+-- Compatibility aliases for existing code
+function M.render_ai_start(line_num)
+    M.overlay_state.current_line = line_num or
+        (bridge.get_cursor_position()[1] - 1) --- @note(waks-work): relook at the -1 logic
+    M.show_thinking()
 end
 
--- Wrapper for rendering system messages
-function M.render_system(msg, level)
-  local lv = level == "error" and vim.log.levels.ERROR or vim.log.levels.INFO
-  vim.notify("WaksAI: " .. msg, lv)
+function M.render_ai_stream(chunk)
+    M.stream_chunk(chunk)
 end
 
--- Placeholder for clearing loading (used in your prompt function)
+function M.render_ai_complete()
+    M.complete_response()
+end
+
+function M.render_thinking(msg)
+    M.show_thinking()
+end
+
 function M.clear_loading()
-  M.render_ai_complete()
+    M.stop_thinking()
 end
 
--- Mapping for render_ai (using your streaming start)
-function M.render_ai(text)
-  local line = vim.api.nvim_win_get_cursor(0)[1] - 1
-  M.render_ai_start(line)
-  M.render_ai_stream(text)
-  M.render_ai_complete()
+function M.open_chat()
+    bridge.notify("WaksAI: Inline Mode Active (Agent mode coming soon!)", bridge.get_log_level("info"))
 end
-
--- Mapping for render_user
-function M.render_user(text)
-  -- Your inline UI doesn't really 'render' the user text in the buffer,
-  -- so we just log it for now.
-  print("User: " .. text)
-end
-
-return M

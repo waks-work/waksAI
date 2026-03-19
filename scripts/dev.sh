@@ -1,27 +1,39 @@
 #!/bin/bash
-echo "🔧 Starting waksAI development..."
 
-# Check if Rust backend exists
-if [ ! -d "rust/waks_ai_backend" ]; then
-    echo "❌ Rust backend not found at rust/waks_ai_backend/"
+# Standardized Waks Project Development Script
+PROJECT_ROOT=$(pwd)
+BACKEND_DIR="rust/waks_ai_backend"
+LUA_DIR="lua/waksAI"
+
+echo "[WaksAI] Initializing development environment..."
+
+# Verification Logic
+if [ ! -d "$BACKEND_DIR" ]; then
+    echo "Error: Rust backend not found at $BACKEND_DIR/"
     exit 1
 fi
 
-echo "🦀 Starting Rust backend in development mode..."
-cd rust/waks_ai_backend
+# Cleanup Function (Ensures no zombie processes)
+cleanup() {
+    echo -e "\n Stopping services..."
+    kill $RUST_PID 2>/dev/null
+    exit
+}
+trap cleanup INT TERM
+
+# 3. Execution
+echo "Starting Rust backend with cargo watch..."
+cd "$BACKEND_DIR" || exit
 cargo watch -x run &
 RUST_PID=$!
 
-echo ""
-echo "🎉 Development servers started!"
-echo "🧩 Lua plugin: $(pwd)/../lua/waksAI"
-echo "🦀 Rust backend: Running on PID $RUST_PID"
-echo ""
-echo "💡 Test in Neovim with:"
-echo "   :lua require('waksAI').some_function()"
-echo ""
-echo "Press Ctrl+C to stop all services"
+echo -e "\n Development servers active!"
+echo "---------------------------------"
+echo " Lua Module Path: $PROJECT_ROOT/$LUA_DIR"
+echo " Rust Backend PID: $RUST_PID"
+echo "---------------------------------"
+echo " Usage: Test in Neovim with :lua require('waksAI').some_function()"
+echo " Press Ctrl+C to stop."
 
-# Wait for Ctrl+C
-trap "kill $RUST_PID; exit" INT
+# Keep script running
 wait $RUST_PID

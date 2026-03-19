@@ -23,8 +23,8 @@ pub async fn run_server() {
         return;
     }
 
-    let session_manager = SessionManager::new();
-    let prompt_manager = PromptManager::new();
+    let _session_manager = SessionManager::new();
+    let _prompt_manager = PromptManager::new();
 
     let strong_handle = StrongHandle::new();
     let state = AppState {
