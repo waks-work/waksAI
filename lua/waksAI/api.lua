@@ -23,23 +23,23 @@ local function async_request(method, path, body, callback)
 
     if body then
         table.insert(cmd, "-d")
-        table.insert(cmd, vim.fn.json_encode(body))
+        table.insert(cmd, bridge.json_encode(body))
     end
 
     --- @note(waks-work): vim.system({cmd}, {opts}, {on_exit})
-    vim.fn.jobstart(cmd, {
+    bridge.start_task(cmd, {
         stdout_buffered = true,
         on_stdout = function(_, data)
             if not data or (#data == 1 and data[1] == "") then
                 if callback then callback(nil) end
                 return
             end
-            local ok, res = pcall(vim.fn.json_decode, table.concat(data, "\n"))
+            local ok, res = pcall(bridge.json_decode, table.concat(data, "\n"))
             if ok and callback then callback(ok and res or nil) end
         end,
         on_stderr = function(_, data)
             if data and #data > 0 then
-                vim.notify("API Error: " .. table.concat(data, "\n"), vim.log.levels.ERROR)
+                bridge.notify("API Error: " .. table.concat(data, "\n"), bridge.get_log_level("error"))
             end
         end
     })
@@ -101,9 +101,9 @@ function M.generate(prompt, callback)
     -- Create a unique session ID for this quick request
     local session_id = "quick_" .. tostring(os.time()) .. "_" .. math.random(1000, 9999)
 
-    M.generate_with_session(prompt, session_id, "ollama", "codellama", function(response)
+    M.generate_with_session(prompt, session_id, function(response)
         if callback then callback(response, {}) end
-    end)
+    end) --- "ollama", "codellama",
 end
 
 ---@note(waks-work): please recheck where it us used and implemented as
@@ -140,7 +140,7 @@ function M.record_code_change(file_name, previous_code, changed_code, descriptio
         msg = description or "AI Generated Change"
     }
     async_request("POST", "/record/change", payload, function()
-        vim.schedule(function() print("✓ Code change synced to Rust database") end)
+        bridge.schedule_task(function() print("✓ Code change synced to Rust database") end)
     end)
 end
 
@@ -153,7 +153,9 @@ function M.record_activity(action, payload)
         action = action,
         payload = payload or {}
     }
-    async_request("POST", "/record/activity", data)
+    async_request("POST", "/record/activity", data, function()
+        bridge.schedule_task(function() print("✓ Activity saved and synced to Rust database") end)
+    end)
 end
 
 -- Maintain compatibility with existing code

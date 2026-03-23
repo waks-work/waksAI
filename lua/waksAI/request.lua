@@ -30,7 +30,7 @@ function M.send(payload, callback)
     }
 
     --- @note(waks-work): add a wrapper for vim.fn.jobstart()
-    vim.fn.jobstart(cmd, {
+    bridge.start_task(cmd, {
         stdout_buffered = true,
         on_stdout = function(_, data)
             local raw = table.concat(data, "")
@@ -57,7 +57,7 @@ function M.stream(payload, on_chunk)
         "-d", json_encode(payload),
         state.config.endpoint .. "/stream",
     }
-    return vim.fn.jobstart(cmd, {
+    return bridge.start_task(cmd, {
         on_stdout = function(_, data)
             for _, line in ipairs(data) do
                 if line and line ~= "" then

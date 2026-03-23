@@ -1,19 +1,88 @@
 --- @mod(bridge.lua): The boundary between Neovim and waksAI logic
 local M = {}
 
+--- Schedule the callback function to be invoked soon by the event loop
+--- @param callback fun(...)
+--- @return nil
+function M.schedule_task(callback)
+    local task = vim.schedule(callback)
+    return task
+end
+
+--- Spawns command as a job
+--- @param command string | string[]
+--- @param options? table<string, fun(...)>
+--- @return number
+function M.start_task(command, options)
+    return vim.fn.jobstart(command, options)
+end
+
+--- Prompts the user for input allowing for potentially asynchronous work until on_confirm
+--- @param prompt_user table
+--- @param on_confirm fun(input: string | string[] | number[])
+--- @return nil
+function M.ui_input(prompt_user, on_confirm)
+    local input = vim.ui.input(prompt_user, on_confirm)
+    return input
+end
+
+--- Defers calling the callback until the timeout passes in ms.
+--- @param callback fun(...)
+--- @param timeout number
+--- @return table
+function M.defer_function(callback, timeout)
+    return vim.defer_fn(callback, timeout)
+end
+
+--- Set the register name to the value given
+--- @param rname string
+--- @param value any
+--- @param options? string
+--- @return any
+function M.set_register(rname, value, options)
+    return vim.fn.setreg(rname, value, options)
+end
+
+--- Checks if table contains a given value either directly or via predicate that is checked for each value
+--- @param tbl table
+--- @param value any
+--- @param options? table
+--- @return boolean
+function M.table_contains(tbl, value, options)
+    local has_value = vim.tbl_contains(tbl, value, options)
+    return has_value
+end
+
+--- @note(waks-work): look at vim.list_contains also and also look at vim.loop.timer ui.lua line 70
+
+--- Returns the standard path locations of various default files and directories
+--- @param str 'cache'|'config'|'config_dirs'|'data'|'data_dirs'|'log'|'run'|'state'
+--- @return string | string[]
+function M.get_standard_path(str)
+    return vim.fn.stdpath(str)
+end
+
 --- Decodes a json string
 --- @param str string
 --- @return string
 function M.json_decode(str)
-    local ok, val = pcall(vim.fn.json_decode, str)
-    if ok then return val else return nil end
+    local ok, val = pcall(vim.json.decode, str)
+    return ok and val or nil
 end
 
 --- Encodes a json
----@param tbl table
+---@param tbl {filetype?: string, line?: number } | table
 ---@return table
 function M.json_encode(tbl)
     return vim.fn.json_encode(tbl)
+end
+
+--- Trim whitespace from both side of the string.
+--- @param ut_string string
+--- @return string
+function M.trim_whitespace(ut_string)
+    local trimmed_string = vim.trim(ut_string)
+    return trimmed_string
 end
 
 --- Wrapper for getting the current mode
@@ -59,6 +128,40 @@ function M.get_buffer_id()
     return buffer_id
 end
 
+--- Gets the current window id
+--- @return number
+function M.get_window_id()
+    local window_id = vim.api.nvim_get_current_win()
+    return window_id
+end
+
+--- Sets the full filename of a buffer
+--- @param buffer number
+--- @param name string
+--- @return nil
+function M.set_buffer_name(buffer, name)
+    return vim.api.nvim_buf_set_name(buffer, name)
+end
+
+--- Generates a temporary(non-existent) flilename located at tempdir.
+--- @return string
+function M.generate_temp_filename()
+    local tfile_name = vim.fn.tempname()
+    return tfile_name
+end
+
+--- Replaces a line range in a buffer
+--- @param buffer number
+--- @param start_idx number
+--- @param end_idx number
+--- @param strict_idx boolean
+--- @param replacement string[] | number[]
+--- @return nil
+function M.replace_line_range(buffer, start_idx, end_idx, strict_idx, replacement)
+    local new_lines = vim.api.nvim_buf_set_lines(buffer, start_idx, end_idx, strict_idx, replacement)
+    return new_lines
+end
+
 --- Returns the filetype of the current buffer
 ---@return string | nil
 function M.get_buffer_filetype()
@@ -90,14 +193,66 @@ end
 --- A "Bridge" helper: Gets the text currently selected in Visual Mode
 --- @return string[]|nil
 function M.get_visual_selection()
-    -- Get the [line, column] for the start and end of the visual selection
-    local _, s_line, s_col, _ = unpack(vim.fn.getpos("'<"))
-    local _, e_line, e_col, _ = unpack(vim.fn.getpos("'>"))
-    -- Handle cases where no selection exists
-    if s_line == 0 or e_line == 0 then return nil end
+    -- Ensure marks are updated
+    local mode = vim.api.nvim_get_mode().mode
+    if mode == "v" or mode == "V" or mode == "\22" then
+        -- Force exit to visual mode to update marks
+        vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", true)
+    end
 
-    -- nvim_buf_get_lines uses 0-indexing
+    local s_line = vim.fn.line("'<")
+    local e_line = vim.fn.line("'>")
+    if s_line == 0 then return nil end
+
     return vim.api.nvim_buf_get_lines(0, s_line - 1, e_line, false)
+end
+
+--- Executes VimScript commands
+--- @param command table | string
+function M.execute_command(command)
+    local cmd = vim.cmd(command)
+    return cmd
+end
+
+--- Fetches the number of lines in a given buffer.
+--- @param buffer number
+--- @return number
+function M.get_bline_count(buffer)
+    local line_count = vim.api.nvim_buf_line_count(buffer)
+    return line_count
+end
+
+--- Expand wildcards and some keywords
+--- @param pstring string
+--- @return string
+function M.get_file_path(pstring)
+    return vim.fn.expand(pstring)
+end
+
+--- Check if directory exists
+--- @param directory string
+--- @return boolean
+function M.is_directory(directory)
+    return vim.fn.isdirectory(directory)
+end
+
+--- Creates a directory with the name given.
+--- @param directory string
+--- @param flags string?
+--- @param prot string?
+--- @return number
+function M.make_directory(directory, flags, prot)
+    return vim.fn.mkdir(directory, flags or "", prot)
+end
+
+--- Creates a global user command that the user can use.
+--- @param cmd_name string Must begin with an uppercase
+--- @param command table | string | boolean | fun(...) Can be a function, single table
+--- @param options? {desc: string, force?: boolean, preview?: fun(...) }
+--- @return nil | string
+function M.create_user_command(cmd_name, command, options)
+    local user_command = vim.api.nvim_create_user_command(cmd_name, command, options)
+    return user_command
 end
 
 --- ** UI **
@@ -224,6 +379,9 @@ function M.set_wrap(win_id, enabled)
     vim.wo[win_id].wrap = enabled
 end
 
+--- @note(waks-work): implement two separate wrappers for this two in line 291 in picker.lua:
+--- vim.bo[buf].buftype = "nofile"; vim.bo[buf].modifiable = false
+
 --- Execute a callback after a delay
 --- @param timeout number Delay in milliseconds
 --- @param callback function The function to run
@@ -297,6 +455,50 @@ function M.get_node_at_cursor()
     local tree = parser:parse()[1]
     local root = tree:root()
     return root:named_descendant_for_range(cursor.row - 1, cursor.col, cursor.row - 1, cursor.col)
+end
+
+--- Gets the full name of the  buffer opened
+--- @param bufnr number | string
+--- @return string
+function M.get_filename(bufnr)
+    local file_name = vim.api.nvim_buf_get_name(bufnr or 0)
+    return file_name
+end
+
+--- Check the buffer to see if it is valid.
+--- @param buffer_id number
+--- @return boolean
+function M.is_file_valid(buffer_id)
+    local is_valid = vim.api.nvim_buf_is_valid(buffer_id)
+    return is_valid
+end
+
+--- Prompts the user to pick from a list of items.
+--- @param items table | string[]
+--- @param options string | nil
+--- @param on_choice fun(choice: string?, index: number?)
+--- @return nil | string
+function M.ui_selection(items, options, on_choice)
+    local ui_selection = vim.ui.select(items, options, on_choice)
+    return ui_selection
+end
+
+--- Modify filename depending on the mods provided
+--- @param filename string
+--- @param mods string
+--- @return string
+function M.modify_filename(filename, mods)
+    local new_filename = vim.fn.fnamemodify(filename, mods)
+    return new_filename
+end
+
+--- Set the current buffer in a window with no side effects.
+--- @param window number
+--- @param buffer number
+--- @return number
+function M.set_window_buffer(window, buffer)
+    local new_window = vim.api.nvim_win_set_buf(window, buffer)
+    return new_window
 end
 
 --- Sets the (1, 0)-indexed position in the window

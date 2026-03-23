@@ -113,7 +113,7 @@ function M.get_all_providers()
     --- @note(waks-work): implement the wrappwrs for all of this
     local providers = vim.tbl_keys(state.config.providers)
     for provider, _ in pairs(M.config.dynamic_providers.custom_providers) do
-        if not vim.tbl_contains(providers, provider) then
+        if not bridge.table_contains(providers, provider) then
             table.insert(providers, provider)
         end
     end
@@ -147,7 +147,7 @@ function M.switch_provider()
         bridge.notify(string.format("%s Provider → %s (%d models)", M.config.icons.success, provider, #models))
 
         local current_model = state.session.model
-        local model_exists = vim.tbl_contains(models, current_model)
+        local model_exists = bridge.table_contains(models, current_model)
 
         if not model_exists and #models > 0 then
             state.session.model = models[1]
@@ -178,8 +178,8 @@ end
 
 ---Opens a picker to switch the active AI model
 function M.switch_model()
-    local current_provider = state.session.provider
-    local models = bridge.merge_lists({}, M.get_models_for_provider(current_provider))
+    local current_provider = state.session.providers
+    local models = bridge.merge_tables({}, M.get_models_for_provider(current_provider))
     local current_model = state.session.model
 
     table.insert(models, M.config.icons.add .. " add_new")
@@ -206,16 +206,15 @@ end
 
 ---Input prompt to create a new provider at runtime
 function M.create_dynamic_provider()
-    --- @note(waks-work): implement wrapper for all of them
-    vim.ui.input({ prompt = M.config.icons.provider .. " Enter new provider name: " }, function(name)
+    bridge.ui_input({ prompt = M.config.icons.provider .. " Enter new provider name: " }, function(name)
         if not name or name == "" then return end
         if not M.is_valid_name(name) then
-            vim.notify(M.config.icons.error .. " Invalid name format", vim.log.levels.ERROR)
+            bridge.notify(M.config.icons.error .. " Invalid name format", bridge.get_log_level("error"))
             return
         end
         state.config.providers[name] = {}
         bridge.notify(M.config.icons.success .. " Created provider: " .. name)
-        vim.ui.select({ "Yes", "No" }, { prompt = "Add models to " .. name .. " now?" }, function(choice)
+        bridge.ui_selection({ "Yes", "No" }, { prompt = "Add models to " .. name .. " now?" }, function(choice)
             if choice == "Yes" then M.register_model_to_provider(name) end
         end)
     end)
@@ -235,8 +234,7 @@ end
 ---Input prompt to register a new model to a specific provider
 ---@param provider string
 function M.register_model_to_provider(provider)
-    --- @note(waks-work): implement the wrapper for all of them
-    vim.ui.input({ prompt = M.config.icons.model .. " Enter model name for " .. provider .. ": " }, function(name)
+    bridge.ui_input({ prompt = M.config.icons.model .. " Enter model name for " .. provider .. ": " }, function(name)
         if not name or name == "" then return end
         if not M.is_valid_name(name, true) then
             bridge.notify(M.config.icons.error .. " Invalid model name", bridge.get_log_level("error"))
@@ -244,7 +242,7 @@ function M.register_model_to_provider(provider)
         end
         if state.register_model(provider, name) then
             bridge.notify(M.config.icons.success .. " Registered " .. name)
-            vim.ui.select({ "Yes", "No" }, { prompt = "Switch to " .. name .. " now?" }, function(c)
+            bridge.ui_select({ "Yes", "No" }, { prompt = "Switch to " .. name .. " now?" }, function(c)
                 if c == "Yes" then
                     state.session.provider = provider
                     state.session.model = name
@@ -285,14 +283,14 @@ function M.show_status()
 
     local buf = bridge.get_current_buffer() --- vim.api.nvim_create_buf(false, true)
 
-    --- @note(waks-work): implement the wrapper for this part.
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-    vim.api.nvim_buf_set_name(buf, "WaksAI-Status")
-    vim.cmd("vertical split")
-    vim.api.nvim_win_set_buf(0, buf)
+    bridge.replace_line_range(buf, 0, -1, false, lines)
+    bridge.set_buffer_name(buf, "WaksAI-Status")
+    bridge.execute_command("vertical split")
+    bridge.set_window_buffer(0, buf)
+
     vim.bo[buf].buftype = "nofile"
     vim.bo[buf].modifiable = false
-    vim.keymap.set("n", "q", "<cmd>q<cr>", { buffer = buf })
+    bridge.set_keymap("n", "q", "<cmd>q<cr>", { buffer = buf })
 end
 
 ---Triggers a refresh of the Chat UI if it exists

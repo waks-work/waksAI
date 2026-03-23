@@ -2,7 +2,7 @@ local bridge = require "bridge"
 ---@mod waksAI.config Configuration Management
 local M = {}
 
-local config_path_rules = vim.fn.expand("~/.config/nvim/ai/user_rules.txt")
+local rules_path = bridge.get_file_path("~/.config/nvim/ai/user_rules.txt")
 
 ---@class WaksConfig
 M.defaults = {
@@ -28,28 +28,24 @@ M.options = {}
 
 --- Create folder if missing
 local function ensure_dir()
-    ---@note(waks-work): ensure implemented.
-    local dir = vim.fn.fnamemodify(config_path_rules, ":h")
-    if vim.fn.isdirectory(dir) == 0 then
-        vim.fn.mkdir(dir, "p")
+    local dir = bridge.modify_filename(rules_path, ":h")
+    if bridge.is_directory(dir) == 0 then
+        bridge.make_directory(dir, "p")
     end
 end
 
 --- Open the rules file for manual editing
 function M.open_user_rules()
     ensure_dir()
-    vim.cmd("edit " .. rules_path)
+    bridge.execute_command("edit " .. rules_path)
 end
 
 --- Initialize configuration
 ---@param opts WaksConfig?
 function M.setup(opts)
-    --- @fix: bridge.merge_tables(table_one, table_two)
-    M.options = bridge(M.defaults, opts or {})
+    M.options = bridge.merge_tables(M.defaults, opts or {})
 
-    -- Create the WaksAIRules command
-    --- @note(waks-work): ensure you make an implementation for this.
-    vim.api.nvim_create_user_command("WaksAIRules", function()
+    bridge.create_user_command("WaksAIRules", function()
         M.open_user_rules()
     end, { desc = "Edit waksAI user rules configuration" })
 

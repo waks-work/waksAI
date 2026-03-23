@@ -31,9 +31,9 @@ local api                   = require('waksAI.api')
 
 --- Configures the aesthetics for the inline diffs
 function InlineAI:setup_highlights()
-    vim.cmd('highlight AISuggestion guifg=#4EC9B0 guibg=#1e3a28 gui=italic')
-    vim.cmd('highlight AIOriginal guifg=#F48771 guibg=#3a1e1e gui=strikethrough')
-    vim.cmd('highlight AICurrent guibg=#2d4a3a')
+    bridge.execute_command('highlight AISuggestion guifg=#4EC9B0 guibg=#1e3a28 gui=italic')
+    bridge.execute_command('highlight AIOriginal guifg=#F48771 guibg=#3a1e1e gui=strikethrough')
+    bridge.execute_command('highlight AICurrent guibg=#2d4a3a')
 end
 
 --- Initializes the engine state
@@ -68,9 +68,7 @@ function InlineAI:get_suggestions_for_selection()
     --- local table = { filetype = vim.bo.filetype, lines = vim.fn.line('$') }
     -- Record activity to Rust backend
     api.record_activity(self.current_session_id, "get_suggestions",
-        --- @fix: add a wrapper and a fix for this
-        --- bridge.json_encode(table))
-        vim.fn.json_encode({ filetype = vim.bo.filetype, lines = bridge.line('$') }))
+        bridge.json_encode({ filetype = bridge.get_buffer_filetype(), lines = bridge.line('$') }))
     api.generate_with_session(selection, self.current_session_id, --- "ollama", "codellama",
         function(response)
             self:process_ai_response(selection, response)
@@ -177,10 +175,6 @@ function InlineAI:display_suggestion(line_num, suggestion)
         local display_line = line_num + i - 2 -- Adjusting for 0-index
         local virt_lines = { { "➤ " .. ai_line, "AISuggestion" } }
         bridge.set_virtual_text(self.current_buf, self.ns, line_num, virt_lines)
-        --- vim.api.nvim_buf_set_extmark(self.current_buf, self.ns, line_num - 1, 0, {
-        ---    virt_lines = { { { "➤ " .. ai_line, "AISuggestion" } } },
-        ---    virt_lines_above = false
-        --- })
     end
 
     suggestion.display_start = line_num

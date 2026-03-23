@@ -38,7 +38,7 @@ M.config = {
 ---@type WaksSession
 M.session = {
     id = "default",
-    provider = "ollama",
+    providers = "ollama",
     model = "llama2",
     history = {},
     context_files = {},
@@ -174,13 +174,13 @@ end
 
 --- Save in history in waksai_history.json file.
 function M.save_history()
-    local history_file = vim.fn.stdpath("data") .. "/waksai_history.json"
+    local history_file = bridge.get_standard_path("data") .. "/waksai_history.json"
     local data = {
         session = M.session,
         config = M.config
     }
 
-    local ok, json = pcall(vim.fn.json_encode, data)
+    local ok, json = pcall(bridge.json_encode, data)
     if ok then
         local f = io.open(history_file, "w")
         if f then
@@ -192,24 +192,21 @@ end
 
 ---@private
 local function json_decode(str)
-    local ok, val = pcall(vim.fn.json_decode, str)
+    local ok, val = pcall(bridge.json_decode, str)
     if ok then return val else return nil end
 end
 
 --- Load from waksai_history.json file.
 function M.load_history()
-    --- @note(waks-work): fix this
-    local history_file = vim.fn.stdpath("data") .. "/waksai_history.json"
+    local history_file = bridge.get_standard_path("data") .. "/waksai_history.json"
     local f = io.open(history_file, "r")
     if f then
         local content = f:read("*a")
         f:close()
 
-        --- @fix: vim.fn.decode
         local ok, data = pcall(bridge.json_decode, content)
         if ok and data then
             if data.session then
-                --- @fix: bridge.merge_tables(table_one, table_two)
                 M.session = bridge.merge_tables(M.session, data.session)
             end
             if data.config then

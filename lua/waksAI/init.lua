@@ -46,7 +46,7 @@ end
 ---Opens the chat window and prompts for user input.
 function M.prompt()
     ui.open_chat()
-    vim.ui.input({
+    bridge.ui_input({
         prompt  = "You: ",
         default = ""
     }, function(user_text)
@@ -132,25 +132,24 @@ function M.keymaps()
     local v = "v"
 
     -- Chat UI Controls
-    vim.keymap.set(n, "<leader>ws", M.prompt, { desc = "WaksAI: Send prompt" })
-    vim.keymap.set(v, "<leader>wv", M.explain_visual, { desc = "WaksAI: Explain selection" })
-    vim.keymap.set(n, "<leader>wc", M.clear_history, { desc = "WaksAI: Clear history" })
+    bridge.set_keymap(n, "<leader>ws", M.prompt, { desc = "WaksAI: Send prompt" })
+    bridge.set_keymap(v, "<leader>wv", M.explain_visual, { desc = "WaksAI: Explain selection" })
+    bridge.set_keymap(n, "<leader>wc", M.clear_history, { desc = "WaksAI: Clear history" })
 
     -- Model & Provider Management (Pickers)
-    vim.keymap.set(n, "<leader>wp", picker.switch_provider, { desc = "WaksAI: Switch provider" })
-    vim.keymap.set(n, "<leader>wM", picker.switch_model, { desc = "WaksAI: Switch model" })
-    vim.keymap.set(n, "<leader>wr", picker.register_model, { desc = "WaksAI: Register model" })
+    bridge.set_keymap(n, "<leader>wp", picker.switch_provider, { desc = "WaksAI: Switch provider" })
+    bridge.set_keymap(n, "<leader>wM", picker.switch_model, { desc = "WaksAI: Switch model" })
+    bridge.set_keymap(n, "<leader>wr", picker.register_model, { desc = "WaksAI: Register model" })
 
     -- Inline AI (Ghost Text)
-    vim.keymap.set({ n, v }, "<leader>ai", function()
+    bridge.set_keymap({ n, v }, "<leader>ai", function()
         inline:get_suggestions_for_selection()
     end, { desc = "WaksAI: Inline suggestion" })
 end
 
---- @fix: Commands fix implementation
-vim.api.nvim_create_user_command("WaksAIAsk", function(opts)
+bridge.create_user_command("WaksAIAsk", function(opts)
     api.send(opts.args, function(reply)
-        vim.notify("AI: " .. reply, vim.log.levels.INFO)
+        bridge.notify("AI: " .. reply, bridge.get_log_level("info"))
     end)
 end, { nargs = "+" })
 
