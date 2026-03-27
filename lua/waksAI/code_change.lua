@@ -156,17 +156,13 @@ function InlineAI:show_suggestions(suggestions_map)
     self:goto_first_suggestion()
 end
 
-function M.add_buffer_highlight()
-
-end
-
 --- Displays virtual text and background highlights for a suggestion
 ---@param line_num integer
 ---@param suggestion AISuggestion
 function InlineAI:display_suggestion(line_num, suggestion)
     -- Highlight the original code with a "strikethrough" effect
 
-    vim.api.nvim_buf_add_highlight(
+    bridge.add_buffer_highlight(
         self.current_buf, self.ns, "AIOriginal", line_num - 1, 0, -1
     )
 
@@ -185,7 +181,7 @@ end
 ---@note(waks-work): This keybinds may change and may need to be updated
 ---so as to meet our requirements and the specific keymap rules we will follow.
 ---will be done more on init.lua file.
-function InlineaAI:setup_keybinds()
+function InlineAI:setup_keybinds()
     local opts = { noremap = true, silent = true, buffer = self.current_buf }
 
     bridge.set_keymap('n', '<Leader>aa', function() self:accept_current() end, opts)

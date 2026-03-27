@@ -1,12 +1,22 @@
 --- @mod(bridge.lua): The boundary between Neovim and waksAI logic
 local M = {}
 
+M.wo = vim.wo
+
 --- Schedule the callback function to be invoked soon by the event loop
 --- @param callback fun(...)
 --- @return nil
 function M.schedule_task(callback)
     local task = vim.schedule(callback)
     return task
+end
+
+--- Checks if a buffer is valid or not.
+--- @param buffer number
+--- @return boolean
+function M.buffer_is_valid(buffer)
+    local is_valid = vim.api.nvim_buf_is_valid(buffer)
+    return is_valid
 end
 
 --- Spawns command as a job
@@ -17,13 +27,107 @@ function M.start_task(command, options)
     return vim.fn.jobstart(command, options)
 end
 
+--- Creates an new, empty and unnamed buffer.
+--- @param listed boolean
+--- @param scratch boolean
+--- @return number
+function M.create_buffer(listed, scratch)
+    local buffer = vim.api.nvim_create_buf(listed, scratch)
+    if buffer == nil then
+        M.notify("Invalid buffer returns nil")
+        return 0
+    end
+    return buffer
+end
+
+--- Sets the current window
+--- @param window_id number
+function M.set_current_window(window_id)
+    vim.api.nvim_set_current_win(window_id)
+end
+
+--- Checks if the existing window is valid.
+--- @param window_id number
+--- @return boolean
+function M.window_is_valid(window_id)
+    return vim.api.nvim_win_is_valid(window_id)
+end
+
+--- Opens a new split window, or a floating window.
+--- @param buffer number
+--- @param enter boolean
+--- @param options table
+--- @return number
+function M.open_window(buffer, enter, options)
+    local window_id = vim.api.nvim_open_win(buffer, enter, options)
+    if buffer == nil then
+        M.notify("Invalid window returns nil")
+        return 0
+    end
+    return window_id
+end
+
+--- Closes the window with the given window id.
+--- @param window_id number
+--- @param force boolean
+--- @return number
+function M.close_window(window_id, force)
+    return vim.api.nvim_win_close(window_id, force)
+end
+
+--- Closes the window with the given window id.
+--- @param window_id number
+--- @param force boolean
+--- @return number
+function M.close_window(window_id, force)
+    if type(window_id) ~= "number" then
+        return 0 -- or print("Invalid window ID:", window_id)
+    end
+    return vim.api.nvim_win_close(window_id, force)
+end
+
 --- Prompts the user for input allowing for potentially asynchronous work until on_confirm
 --- @param prompt_user table
 --- @param on_confirm fun(input: string | string[] | number[])
---- @return nil
 function M.ui_input(prompt_user, on_confirm)
-    local input = vim.ui.input(prompt_user, on_confirm)
-    return input
+    local width            = math.floor(vim.o.columns * 0.6)
+    local height           = 10
+
+    local bufnr            = M.create_buffer(false, true)
+    vim.bo[bufnr].filetype = "markdown"
+
+    local win_opts         = {
+        relative = "editor",
+        width = width,
+        height = height,
+        row = math.floor((vim.o.lines - height) / 2),
+        col = math.floor((vim.o.columns - width) / 2),
+        style = "minimal",
+        border = "single",
+        title = " " .. (prompt_user.prompt or "Input") .. " ",
+        title_pos = "center",
+    }
+
+    local window_id        = M.open_window(bufnr, true, win_opts)
+    if prompt_user.default then
+        M.replace_line_range(bufnr, 0, -1, false, M.split_strings(prompt_user.default, "\n", true))
+    end
+    M.set_cursor_position(window_id, { 1, #M.fetch_buffer_content(bufnr, 0, 1)[1] })
+
+    local function submit()
+        local lines = M.fetch_buffer_content(0, -1, bufnr)
+        local content = table.concat(lines, "\n")
+        M.close_window(window_id, true)
+        if on_confirm then on_confirm(content) end
+    end
+
+    M.set_keymap('i', '<C-s>', submit, { buffer = bufnr, noremap = true, silent = true })
+    M.set_keymap('n', '<Esc>', function() M.close_window(window_id, true) end, { buffer = bufnr })
+
+    M.set_window_options(window_id, 'number', false)
+    M.set_window_options(window_id, 'relativenumber', false)
+
+    M.execute_command("startinsert")
 end
 
 --- Defers calling the callback until the timeout passes in ms.
@@ -160,6 +264,18 @@ end
 function M.replace_line_range(buffer, start_idx, end_idx, strict_idx, replacement)
     local new_lines = vim.api.nvim_buf_set_lines(buffer, start_idx, end_idx, strict_idx, replacement)
     return new_lines
+end
+
+--- Adds highlighting to a specific buffer
+--- @param buffer number
+--- @param namespace_id number
+--- @param highlight_group string
+--- @param line_no number
+--- @param start_col number
+--- @param end_col number
+--- @return nil
+function M.add_buffer_highlight(buffer, namespace_id, highlight_group, line_no, start_col, end_col)
+    vim.api.nvim_buf_add_highlight(buffer, namespace_id, highlight_group, line_no, start_col, end_col)
 end
 
 --- Returns the filetype of the current buffer
@@ -313,11 +429,13 @@ end
 --- @param buffer number Buffer ID (0 for current)
 --- @param namespace_id number Namespace ID
 --- @param line number 1-indexed line number
+--- @param column? number
 --- @param lines table list of strings or {text, hl} pairs
 --- @return number extmark_id
-function M.set_virtual_text(buffer, namespace_id, line, lines)
+function M.set_virtual_text(buffer, namespace_id, line, column, lines)
     local virtual_lines = {}
     local default_highlight = "AIOverlay"
+    local column = column or -1
 
     for _, text in ipairs(lines) do
         if type(text) == "string" then
@@ -327,7 +445,7 @@ function M.set_virtual_text(buffer, namespace_id, line, lines)
         end
     end
 
-    return vim.api.nvim_buf_set_extmark(buffer, namespace_id, line, -1, 0, {
+    return vim.api.nvim_buf_set_extmark(buffer, namespace_id, line, column, {
         virt_lines = virtual_lines,
         virt_lines_above = false,
     })

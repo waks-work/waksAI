@@ -30,7 +30,7 @@ M.config = {
 }
 
 -- ===================================
--- 📍 INLINE OVERLAY RENDERING
+-- INLINE OVERLAY RENDERING
 -- ===================================
 
 ---Renders raw lines as virtual text using extmarks
@@ -41,23 +41,34 @@ function M.render_inline_response(line_num, response_lines)
     local buf = bridge.get_current_buffer()
     local ns = bridge.get_namespace_id("waksai_inline")
 
+    local max_lines = bridge.get_bline_count(buf)
+    if line_num < 0 or line_num >= max_lines then
+        line_num = math.max(0, math.min(line_num, max_lines - 1))
+    end
+
     -- Clear any existing overlays in this specific namespace
     bridge.clear_overlay(buf, ns)
 
     local virt_lines = {}
     for _, line in ipairs(response_lines) do
-        table.insert(virt_lines, {
-            { M.config.overlay_prefix .. line, "Comment" }
-        })
+        table.insert(virt_lines, { M.config.overlay_prefix .. line, "Comment" })
     end
 
-    bridge.set_virtual_text(buf, ns, line_num, virt_lines)
+    bridge.set_virtual_text(buf, ns, line_num, -1, virt_lines)
     return ns
 end
 
 ---Displays the animated thinking spinner
----@param line_num integer
+---@param line_num integer|nil The line number to attach to, or nil to use cursor
 function M.render_thinking(line_num)
+    if type(line_num) == "string" then
+        local cursor_pos = bridge.get_cursor_position()
+        line_num = (cursor_pos and cursor_pos.row or 1) - 1
+    elseif not line_num then
+        local cursor_pos = bridge.get_cursor_position()
+        line_num = (cursor_pos and cursor_pos.row or 1) - 1
+    end
+
     local response_lines = {
         "// " .. M.config.icons.thinking .. " Thinking... [⠋]",
     }
@@ -81,7 +92,7 @@ function M.animate_thinking(line_num, ns)
 
     timer:start(0, M.config.thinking_speed, vim.schedule_wrap(function()
         -- Safety check: stop if thinking finished or buffer is gone
-        if not state.is_thinking or not vim.api.nvim_buf_is_valid(0) then
+        if not state.is_thinking or not bridge.buffer_is_valid(0) then
             if not timer:is_closing() then
                 timer:stop()
                 timer:close()
@@ -117,11 +128,11 @@ function M.render_ai_stream(chunk)
     state.ai_current_content = (state.ai_current_content or "") .. chunk
 
     local buf = bridge.get_current_buffer()
-    local ns = state.ai_namespace or vim.api.nvim_create_namespace("waksai_inline")
+    local ns = state.ai_namespace or bride.get_namespace_id("waksai_inline")
 
     local response_lines = { "// " .. M.config.icons.ai .. " Response", "" }
 
-    for _, line in ipairs(vim.split(state.ai_current_content, "\n")) do
+    for _, line in ipairs(bridge.split_strings(state.ai_current_content, "\n", false)) do
         table.insert(response_lines, line)
     end
 
@@ -141,15 +152,16 @@ function M.render_ai_complete()
     end
 end
 
----Cleans the buffer for all inline AI overlays.
-function M.clear_overlay()
-    local buf = bridge.get_current_buffer()
-    local ns = state.ai_namespace or bridge.get_namespace_id("waksai_inline")
-    bridge.clear_overlay(buf, ns)
-
-    state.ai_overlay_line = nil
-    state.ai_current_content = nil
+---Finalizes the UI state
+function M.render_ai_complete()
     state.is_thinking = false
+    if state.thinking_timer then
+        pcall(function()
+            state.thinking_timer:stop()
+            state.thinking_timer:close()
+        end)
+        state.thinking_timer = nil
+    end
 end
 
 ---Commits the AI suggestion to the actual buffer text
@@ -241,11 +253,38 @@ function M.setup(opts)
     M.config = bridge.merge_tables(M.config, opts or {})
 end
 
--- Alias for opening the input (since you don't have a chat window yet)
+M.sidebar_buf = nil
+M.sidebar_win = nil
+
 function M.open_chat()
-    -- This is a placeholder since your current UI is inline only
-    -- We can just notify or trigger the input directly
-    bridge.notify("WaksAI: Inline Mode Active", bridge.get_log_level("info"))
+    if M.sidebar_win and bridge.window_is_valid(M.sidebar_win) then
+        bridge.set_current_window(M.sidebar_win)
+        return
+    end
+
+    if not M.sidebar_buf or not bridge.buffer_is_valid(M.sidebar_buf) then
+        M.sidebar_buf = bridge.create_buffer(false, true)
+
+        vim.bo[M.sidebar_buf].buftype = "nofile"
+        vim.bo[M.sidebar_buf].filetype = "markdown"
+        vim.bo[M.sidebar_buf].bufhidden = "hide"
+
+        bridge.set_buffer_name(M.sidebar_buf, "WaksAI-Chat")
+    end
+
+    bridge.execute_command("botright vsplit")
+    bridge.execute_command("vertical resize 45")
+
+    M.sidebar_win = bridge.get_window_id()
+    bridge.set_window_buffer(M.sidebar_win, M.sidebar_buf)
+
+    vim.wo[M.sidebar_win].number = false
+    vim.wo[M.sidebar_win].relativenumber = false
+    vim.wo[M.sidebar_win].wrap = true
+    vim.wo[M.sidebar_win].winfixwidth = true
+    vim.wo[M.sidebar_win].fillchars = "eob: "
+    vim.wo[M.sidebar_win].signcolumn = "no"
+    vim.wo[M.sidebar_win].foldcolumn = "0"
 end
 
 -- Wrapper for rendering system messages
@@ -259,12 +298,20 @@ function M.clear_loading()
     M.render_ai_complete()
 end
 
--- Mapping for render_ai (using your streaming start)
 function M.render_ai(text)
-    local line = bridge.get_cursor_position()[1] - 1
+    local cursor_pos = bridge.get_cursor_position()
+    local line = (cursor_pos and cursor_pos.row or 1) - 1
     M.render_ai_start(line)
     M.render_ai_stream(text)
     M.render_ai_complete()
+end
+
+function M.clear_chat()
+    state.session.history = {}
+    if M.sidebar_buf and bridge.buffer_is_valid(M.sidebar_buf) then
+        bridge.replace_line_range(M.sidebar_buf, 0, -1, false, { "# WaksAI Chat Cleared", "" })
+    end
+    bridge.notify("WaksAI: Chat history cleared", bridge.get_log_level("info"))
 end
 
 -- Mapping for render_user

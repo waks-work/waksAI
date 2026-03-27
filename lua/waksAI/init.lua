@@ -1,15 +1,16 @@
 ---@mod waksAI Main Entry Point
 ---@brief Integrated AI Assistant for Neovim with dynamic provider support.
-local M      = {}
+package.loaded["waksAI.code_change"] = nil
+local M                              = {}
 
 -- Internal Module Imports
-local state  = require("waksAI.state")
-local ui     = require("waksAI.ui")
-local api    = require("waksAI.api")
-local utils  = require("waksAI.utils")
-local picker = require("waksAI.picker")
-local inline = require("waksAI.code_change")
-local bridge = require("waksAI.bridge")
+local state                          = require("waksAI.state")
+local ui                             = require("waksAI.ui")
+local api                            = require("waksAI.api")
+local utils                          = require("waksAI.utils")
+local picker                         = require("waksAI.picker")
+local bridge                         = require("waksAI.bridge")
+--- local inline = require("waksAI.code_change")
 
 ---Initializes the plugin and merges user configuration.
 ---@param opts table? Configuration options
@@ -39,6 +40,7 @@ function M.setup(opts)
     -- 3. Register Global Keymaps
     M.keymaps()
 
+    local inline = require("waksAI.code_change")
     -- 4. Initial Hardware/Highlight setup
     inline:init()
 end
@@ -46,14 +48,13 @@ end
 ---Opens the chat window and prompts for user input.
 function M.prompt()
     ui.open_chat()
-    bridge.ui_input({
-        prompt  = "You: ",
-        default = ""
-    }, function(user_text)
+    bridge.ui_input({ prompt = "Question for AI:" }, function(user_text)
         if not user_text or user_text == "" then return end
 
         ui.render_user(user_text)
-        ui.render_thinking("Processing your request...")
+
+        local line_num = (cursor_pos and cursor_pos.row or 1) - 1 -- 0-indexed
+        ui.render_thinking(line_num)
 
         api.send(user_text, function(ai_text, code_blocks)
             ui.clear_loading()
@@ -72,34 +73,49 @@ function M.prompt()
     end)
 end
 
----Sends visually selected text to the AI for explanation or refactoring.
----@note(waks-work): In need of major fixing for betterment of society.
 function M.explain_visual()
-    ui.open_chat()
-
     local visual_text = utils.get_visual_selection()
     if not visual_text or visual_text == "" then
         ui.render_system("No text selected", "warning")
         return
     end
 
-    local prompt = "Explain this code and suggest improvements:\n\n```\n" .. visual_text .. "\n```"
+    -- Choice: We provide a default context so the user knows what they are explaining
+    local default_text = "Please explain this code:\n"
 
-    ui.render_user("Explain the selected code")
-    ui.render_thinking("Analyzing the code structure...")
+    bridge.ui_input({
+        prompt = "Explain Selection",
+        default = default_text
+    }, function(user_instructions)
+        if not user_instructions or user_instructions == "" then return end
 
-    api.send(prompt, function(ai_text, code_blocks)
-        ui.clear_loading()
-        ui.render_ai(ai_text)
+        -- Refined Prompt Construction
+        local final_prompt = string.format(
+            "%s\n\n### CONTEXT: SELECTED CODE\n```\n%s\n```",
+            user_instructions,
+            visual_text
+        )
 
-        if code_blocks and #code_blocks > 0 then
-            for _, cb in ipairs(code_blocks) do
-                ui.render_ai(cb.code, { is_code = true, lang = cb.lang })
+        -- Switch to the Sidebar UI
+        ui.open_chat()
+        ui.render_user(user_instructions)
+        ui.render_thinking() -- Target the sidebar buffer instead of line_num
+
+        api.send(final_prompt, function(ai_text, code_blocks)
+            ui.clear_loading()
+            ui.render_ai(ai_text)
+
+            -- Render extracted code blocks if the AI suggested refactors
+            if code_blocks and #code_blocks > 0 then
+                for _, cb in ipairs(code_blocks) do
+                    ui.render_ai(cb.code, { is_code = true, lang = cb.lang })
+                end
             end
-        end
 
-        table.insert(state.session.history, { role = "user", content = prompt })
-        table.insert(state.session.history, { role = "assistant", content = ai_text })
+            -- Persist to State
+            table.insert(state.session.history, { role = "user", content = final_prompt })
+            table.insert(state.session.history, { role = "assistant", content = ai_text })
+        end)
     end)
 end
 
@@ -107,6 +123,21 @@ end
 function M.toggle_model()
     local next_model = state.cycle_model()
     ui.render_system("Model switched to: " .. next_model, "success")
+end
+
+function M.toggle_chat()
+    if M.sidebar_win and vim.api.nvim_win_is_valid(M.sidebar_win) then
+        local success, err = pcall(function()
+            bridge.close_window(M.sidebar_win, true)
+        end)
+        M.sidebar_win = nil -- Always clear the reference after closing
+
+        if not success then
+            bridge.notify("Window close failed: " .. tostring(err), bridge.get_log_level("warn"))
+        end
+    else
+        ui.open_chat()
+    end
 end
 
 ---Clears the current chat session buffer and history.
@@ -143,7 +174,7 @@ function M.keymaps()
 
     -- Inline AI (Ghost Text)
     bridge.set_keymap({ n, v }, "<leader>ai", function()
-        inline:get_suggestions_for_selection()
+        require("waksAI.code_change"):get_suggestions_for_selection()
     end, { desc = "WaksAI: Inline suggestion" })
 end
 

@@ -90,7 +90,11 @@ function M.get_surrounding_function()
     end
 
     ---@note(waks-work): Fallback Regex Logic
-    local row = bridge.get_cursor_position()[1]
+    local cursor_pos = bridge.get_cursor_position()[1]
+    if not cursor_pos or not cursor_pos then
+        return nil -- ✅ Safety check
+    end
+    local row = cursor_pos.row
     local buflines = bridge.fetch_buffer_content(0, -1, buffer)
 
     -- Optimization: Less than 100 lines up to prevent lag
@@ -182,7 +186,9 @@ function M.build_request_context(user_prompt)
             ctx.snippet = fn_code
         else
             -- Fallback: 20-line window around cursor
-            local row = ctx.meta.line
+            local row = ctx.meta and ctx.meta.line or 1
+            if not row then row = 1 end
+
             local start = math.max(0, row - 10)
             local finish = math.min(bridge.get_bline_count(buffer), row + 10)
             local lines = bridge.fetch_buffer_content(start, finish, buffer)
