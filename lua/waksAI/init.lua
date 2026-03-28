@@ -51,18 +51,16 @@ function M.prompt()
     bridge.ui_input({ prompt = "Question for AI:" }, function(user_text)
         if not user_text or user_text == "" then return end
 
-        ui.render_user(user_text)
-
-        local line_num = (cursor_pos and cursor_pos.row or 1) - 1 -- 0-indexed
-        ui.render_thinking(line_num)
+        ui.render_user_sidebar(user_text)
+        ui.render_thinking_sidebar()
 
         api.send(user_text, function(ai_text, code_blocks)
             ui.clear_loading()
-            ui.render_ai(ai_text)
+            ui.render_ai_sidebar(ai_text, code_blocks)
 
             if code_blocks and #code_blocks > 0 then
                 for _, cb in ipairs(code_blocks) do
-                    ui.render_ai(cb.code, { is_code = true, lang = cb.lang })
+                    ui.render_ai_with_actions(cb.code, { is_code = true, lang = cb.lang })
                 end
             end
 
@@ -98,17 +96,16 @@ function M.explain_visual()
 
         -- Switch to the Sidebar UI
         ui.open_chat()
-        ui.render_user(user_instructions)
+        ui.render_user_inline(user_instructions)
         ui.render_thinking() -- Target the sidebar buffer instead of line_num
 
         api.send(final_prompt, function(ai_text, code_blocks)
             ui.clear_loading()
-            ui.render_ai(ai_text)
+            ui.render_ai(ai_text, { inline = true })
 
-            -- Render extracted code blocks if the AI suggested refactors
             if code_blocks and #code_blocks > 0 then
                 for _, cb in ipairs(code_blocks) do
-                    ui.render_ai(cb.code, { is_code = true, lang = cb.lang })
+                    ui.render_ai(cb.code, { is_code = true, lang = cb.lang, inline = true })
                 end
             end
 
@@ -119,6 +116,15 @@ function M.explain_visual()
     end)
 end
 
+-- In init.lua or code_change.lua
+function M.quick_suggest()
+    local prompt = "Generate a hello world function"
+    api.send(prompt, function(answer)
+        -- This will appear right under the cursor as virtual text
+        ui.render_ai_inline(answer)
+    end)
+end
+
 ---Cycles through available models and notifies the user.
 function M.toggle_model()
     local next_model = state.cycle_model()
@@ -126,7 +132,7 @@ function M.toggle_model()
 end
 
 function M.toggle_chat()
-    if M.sidebar_win and vim.api.nvim_win_is_valid(M.sidebar_win) then
+    if M.sidebar_win and bridge.window_is_valid(M.sidebar_win) then
         local success, err = pcall(function()
             bridge.close_window(M.sidebar_win, true)
         end)

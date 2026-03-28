@@ -26,12 +26,65 @@ M.config = {
         user = "👤",
         ai = "🤖",
         thinking = "💭",
+        collapsed = "▶",
+        expanded = "▼",
     },
 }
+
+-- [[ Was from UI
+-- Internal state
+-- M.overlay_state = {
+--    ns = nil,                 -- Namespace for extmarks
+--    current_line = nil,       -- Line number where overlay is shown
+--    response_text = "",       -- Accumulated AI response
+--    is_thinking = false,      -- Thinking animation active
+--    thinking_timer = nil,     -- Timer handle
+--    is_collapsed = false,     -- Response collapsed state
+--    full_response_lines = {}, -- Full response (for expanding)
+--}
+-- function M.setup_highlights()
+--    bridge.set_highlight("AIThinking", { fg = "#7f849c", italic = true })
+--    bridge.set_highlight("AIOverlay", { fg = "#89b4fa", italic = true })
+--    bridge.set_highlight("AIOverlayCode", { fg = "#cba6f7", bg = "#181825" })
+--    bridge.set_highlight("AIAction", { fg = "#a6e3a1", bold = true })
+-- end
 
 -- ===================================
 -- INLINE OVERLAY RENDERING
 -- ===================================
+
+--- We only need to implement this:
+--- [[
+---
+-- function M.show_collapsed_response()
+--    M.overlay_state.is_collapsed = true
+--    local summary_lines = {
+--        { M.config.overlay_prefix .. "// 🤖 Response [" .. #M.overlay_state.full_response_lines .. " lines]", "AIOverlay" },
+--        { M.config.overlay_prefix, "AIOverlay" },
+--        { M.config.overlay_prefix .. M.config.icons.collapsed .. " Press → to expand", "AIAction" },
+--        { M.config.overlay_prefix, "AIOverlay" },
+--        { M.config.overlay_prefix .. "[Tab: Insert] [Esc: Dismiss]", "AIAction" },
+--    }
+--    M.render_virtual_lines(M.overlay_state.current_line, summary_lines)
+-- end
+---Expand collapsed response
+-- function M.expand_response()
+--    if M.overlay_state.is_collapsed then
+--        M.overlay_state.is_collapsed = false
+--        M.render_virtual_lines(
+--            M.overlay_state.current_line,
+--            M.overlay_state.full_response_lines
+--        )
+--    end
+-- end
+---Collapse expanded response
+-- function M.collapse_response()
+--    if not M.overlay_state.is_collapsed then
+--        M.show_collapsed_response()
+--    end
+--end
+
+--- ]]
 
 ---Renders raw lines as virtual text using extmarks
 ---@param line_num integer The 0-indexed line to attach to
@@ -46,7 +99,6 @@ function M.render_inline_response(line_num, response_lines)
         line_num = math.max(0, math.min(line_num, max_lines - 1))
     end
 
-    -- Clear any existing overlays in this specific namespace
     bridge.clear_overlay(buf, ns)
 
     local virt_lines = {}
@@ -113,6 +165,11 @@ end
 ---Initializes the overlay state for a new AI call
 ---@param line_num integer
 function M.render_ai_start(line_num)
+    --- @class AIState
+    --- @field is_thinking boolean
+    --- @field ai_overlay_line integer
+    --- @field ai_current_content string
+    --- @field ai_namespace integer
     state.is_thinking = true
     state.ai_overlay_line = line_num
     state.ai_current_content = ""
@@ -128,7 +185,7 @@ function M.render_ai_stream(chunk)
     state.ai_current_content = (state.ai_current_content or "") .. chunk
 
     local buf = bridge.get_current_buffer()
-    local ns = state.ai_namespace or bride.get_namespace_id("waksai_inline")
+    local ns = state.ai_namespace or bridge.get_namespace_id("waksai_inline")
 
     local response_lines = { "// " .. M.config.icons.ai .. " Response", "" }
 
@@ -140,16 +197,6 @@ function M.render_ai_stream(chunk)
     table.insert(response_lines, "[Tab: Insert] [Esc: Dismiss]")
 
     M.render_inline_response(state.ai_overlay_line, response_lines)
-end
-
----Finalizes the UI state
-function M.render_ai_complete()
-    state.is_thinking = false
-    if state.thinking_timer then
-        state.thinking_timer:stop()
-        state.thinking_timer:close()
-        state.thinking_timer = nil
-    end
 end
 
 ---Finalizes the UI state
@@ -204,6 +251,19 @@ function M.get_user_input(callback)
     end)
 end
 
+--- Mapping for rendering the user inline as virtual text
+---@param text string
+function M.render_user_inline(text)
+    local cursor_pos = bridge.get_cursor_position()
+    local line_num = (cursor_pos and cursor_pos.row or 1) - 1
+
+    local lines = {
+        M.config.icons.user .. " " .. text,
+        string.rep("─", 20)
+    }
+    M.render_inline_response(line_num, lines)
+end
+
 ---@note(waks-work): This keybinds may change and may need to be updated
 ---so as to meet our requirements and the specific keymap rules we will follow.
 ---will be done more on init.lua file.
@@ -230,7 +290,6 @@ function M.setup_keymaps()
             M.render_ai_start(line_num)
 
             -- Example: simulate response after 1 second
-            --- @note(waks-work): implement a wrapper for this.
             bridge.defer_function(function()
                 M.render_ai_stream("```rust\nlet example = 42;\n```")
                 M.render_ai_complete()
@@ -251,6 +310,41 @@ end
 ---@param opts WaksUIConfig?
 function M.setup(opts)
     M.config = bridge.merge_tables(M.config, opts or {})
+end
+
+-- Wrapper for rendering system messages
+function M.render_system(msg, level)
+    local lv = level == "error" and bridge.get_log_level("error") or bridge.get_log_level("info")
+    bridge.notify("WaksAI: " .. msg, lv)
+end
+
+-- Placeholder for clearing loading (used in your prompt function)
+function M.clear_loading()
+    M.render_ai_complete()
+end
+
+--- Renders AI output as an inline virtual text overlay (Ghost Text)
+--- @param text string The full text or code to display
+--- @param line_num integer|nil Optional 0-indexed line, defaults to cursor
+function M.render_ai_inline(text, line_num)
+    if not line_num then
+        local cursor_pos = bridge.get_cursor_position()
+        line_num = (cursor_pos and cursor_pos.row or 1) - 1
+    end
+
+    M.render_ai_start(line_num)
+    M.render_ai_stream(text)
+    M.render_ai_complete()
+end
+
+function M.render_ai(text, opts)
+    opts = opts or {}
+
+    if opts.inline or not (M.sidebar_win and bridge.window_is_valid(M.sidebar_win)) then
+        M.render_ai_inline(text, opts.line)
+    else
+        M.render_ai_sidebar(text, opts)
+    end
 end
 
 M.sidebar_buf = nil
@@ -277,6 +371,7 @@ function M.open_chat()
 
     M.sidebar_win = bridge.get_window_id()
     bridge.set_window_buffer(M.sidebar_win, M.sidebar_buf)
+    M.set_sidebar_interface(M.sidebar_buf)
 
     vim.wo[M.sidebar_win].number = false
     vim.wo[M.sidebar_win].relativenumber = false
@@ -287,25 +382,6 @@ function M.open_chat()
     vim.wo[M.sidebar_win].foldcolumn = "0"
 end
 
--- Wrapper for rendering system messages
-function M.render_system(msg, level)
-    local lv = level == "error" and bridge.get_log_level("error") or bridge.get_log_level("info")
-    bridge.notify("WaksAI: " .. msg, lv)
-end
-
--- Placeholder for clearing loading (used in your prompt function)
-function M.clear_loading()
-    M.render_ai_complete()
-end
-
-function M.render_ai(text)
-    local cursor_pos = bridge.get_cursor_position()
-    local line = (cursor_pos and cursor_pos.row or 1) - 1
-    M.render_ai_start(line)
-    M.render_ai_stream(text)
-    M.render_ai_complete()
-end
-
 function M.clear_chat()
     state.session.history = {}
     if M.sidebar_buf and bridge.buffer_is_valid(M.sidebar_buf) then
@@ -314,11 +390,124 @@ function M.clear_chat()
     bridge.notify("WaksAI: Chat history cleared", bridge.get_log_level("info"))
 end
 
--- Mapping for render_user
-function M.render_user(text)
-    -- Your inline UI doesn't really 'render' the user text in the buffer,
-    -- so we just log it for now.
-    print("User: " .. text)
+--- Sets a fixed bottom area.
+--- @param buffer number
+function M.set_sidebar_interface(buffer)
+    vim.wo[M.sidebar_win].winbar = ""
+    local namespace_id = bridge.get_namespace_id("waksAi_ui")
+
+    local width = vim.api.nvim_win_get_width(0)
+    local virt_lines = {
+        { string.rep("─", width), "FloatBorder" },
+        { "  Ask waksAI or type '/' for commands...", "Comment" }
+    }
+
+    bridge.set_virtual_text(buffer, namespace_id, 0, 0, virt_lines)
 end
+
+--- Render ai action
+--- @param text string
+--- @param lang string
+function M.render_ai_with_actions(text, lang)
+    local start_line = bridge.get_bline_count(M.sidebar_buf)
+    M.render_ai("```" .. lang .. "\n" .. text .. "\n```")
+    local end_line = bridge.get_bline_count(M.sidebar_buf)
+
+    local ns_id = bridge.get_namespace_id("waksAI_Actions")
+    bridge.set_virtual_text(M.sidebar_buf, ns_id, start_line, 0, {
+        virt_text = { { "  Apply Change ", "DiagnosticOk" }, { " 󰅖 Dismiss ", "DiagnosticError" } },
+        virt_text_pos = "right_align",
+    })
+
+    table.insert(state.current_page_blocks, {
+        start_line = start_line,
+        end_line = end_line,
+        content = text
+    })
+end
+
+--- Animate teh thinking animation.
+--- @param target_line integer
+function M.animate_thinking_sidebar(target_line)
+    local frame = 1
+    state.thinking_timer = vim.loop.new_timer()
+    state.thinking_timer:start(0, M.config.thinking_speed, vim.schedule_wrap(function()
+        if not state.is_thinking or not bridge.buffer_is_valid(M.sidebar_buf) then
+            M.render_ai_complete()
+            return
+        end
+
+        local spinner = M.config.thinking_frames[frame]
+        local display = "   " .. M.config.icons.thinking .. " Thinking... [" .. spinner .. "]"
+
+        bridge.replace_line_range(M.sidebar_buf, target_line, target_line + 1, false, { display })
+        frame = (frame % #M.config.thinking_frames) + 1
+    end))
+end
+
+--- Render sidebar thinking
+function M.render_thinking_sidebar()
+    if not M.sidebar_buf then return end
+    state.is_thinking = true
+    local last_line = bridge.get_bline_count(M.sidebar_buf)
+    bridge.replace_line_range(M.sidebar_buf, last_line, last_line, false,
+        { "   " .. M.config.icons.thinking .. " Thinking..." })
+
+    M.animate_thinking_sidebar(last_line)
+end
+
+--- Render ai output in sidebar
+--- @param text string
+--- @param opts table
+function M.render_ai_sidebar(text, opts)
+    if not M.sidebar_buf or not bridge.buffer_is_valid(M.sidebar_buf) then return end
+
+    opts = opts or {}
+    local all_lines = {}
+
+    if opts.is_code then
+        table.insert(all_lines, "```" .. (opts.lang or "text"))
+        bridge.merge_lists(all_lines, bridge.split_strings(text, "\n", true))
+        table.insert(all_lines, "```")
+        table.insert(all_lines, "")
+    else
+        table.insert(all_lines, "## " .. M.config.icons.ai .. " waksAI")
+        table.insert(all_lines, "")
+        bridge.merge_lists(all_lines, bridge.split_strings(text, "\n", true))
+        table.insert(all_lines, "")
+    end
+
+    local last_line = bridge.get_bline_count(M.sidebar_buf)
+    bridge.replace_line_range(M.sidebar_buf, last_line, last_line, false, all_lines)
+
+    -- Sync cursor to bottom
+    if M.sidebar_win and bridge.window_is_valid(M.sidebar_win) then
+        local new_count = bridge.get_bline_count(M.sidebar_buf)
+        bridge.set_cursor_position(M.sidebar_win, { row = new_count, col = 0 })
+    end
+end
+
+--- Mapping for render_user
+--- @param text string
+function M.render_user_sidebar(text)
+    if not M.sidebar_buf or not bridge.buffer_is_valid(M.sidebar_buf) then
+        M.open_chat()
+    end
+
+    local header = { "", "## " .. M.config.icons.user .. " User", "" }
+    local lines = bridge.split_strings(text, "\n", true)
+    local all_lines = bridge.merge_lists(header, lines)
+
+    local last_line = bridge.get_bline_count(M.sidebar_buf)
+    bridge.replace_line_range(M.sidebar_buf, last_line, last_line, false, all_lines)
+
+    if M.sidebar_win and bridge.window_is_valid(M.sidebar_win) then
+        local new_count = bridge.get_bline_count(M.sidebar_buf)
+        bridge.set_cursor_position(M.sidebar_win, { row = new_count, col = 0 })
+    end
+end
+
+M.render_thinking = M.render_thinking_sidebar
+M.render_user = M.render_user_sidebar
 
 return M

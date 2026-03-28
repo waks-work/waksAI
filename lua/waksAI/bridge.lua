@@ -112,7 +112,7 @@ function M.ui_input(prompt_user, on_confirm)
     if prompt_user.default then
         M.replace_line_range(bufnr, 0, -1, false, M.split_strings(prompt_user.default, "\n", true))
     end
-    M.set_cursor_position(window_id, { 1, #M.fetch_buffer_content(bufnr, 0, 1)[1] })
+    M.set_cursor_position(window_id, { 1, #M.fetch_buffer_content(0, -1, bufnr) })
 
     local function submit()
         local lines = M.fetch_buffer_content(0, -1, bufnr)
@@ -128,6 +128,14 @@ function M.ui_input(prompt_user, on_confirm)
     M.set_window_options(window_id, 'relativenumber', false)
 
     M.execute_command("startinsert")
+end
+
+--- Sets window options for a given window
+--- @param window_id number
+--- @param option string
+--- @param value any
+function M.set_window_options(window_id, option, value)
+    vim.api.nvim_win_set_option(window_id, option, value)
 end
 
 --- Defers calling the callback until the timeout passes in ms.
@@ -221,7 +229,9 @@ end
 --- @param buffer number|nil Defaults to 0 (current buffer)
 --- @return string[]
 function M.fetch_buffer_content(start_idx, end_idx, buffer)
-    buffer = buffer or 0
+    if not M.buffer_is_valid(buffer) then
+        return {}
+    end
     return vim.api.nvim_buf_get_lines(buffer, start_idx, end_idx, false)
 end
 
