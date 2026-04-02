@@ -76,7 +76,7 @@ local function select_from_list(title, items, on_choice, opts)
     end
 
     --- @note(waks-work): implement a wrapper for the vim.ui.select()
-    vim.ui.select(display_items, {
+    bridge.ui_selection(display_items, {
         prompt = M.config.icons.info .. " " .. title,
         format_item = function(item) return item end,
     }, function(choice_display)
@@ -127,7 +127,7 @@ end
 ---Opens a picker to switch the active AI provider
 function M.switch_provider()
     local providers = M.get_all_providers()
-    local current_provider = state.session.provider
+    local current_provider = state.session.providers
 
     select_from_list("Select AI Provider", providers, function(provider)
         if provider == M.config.icons.dynamic .. " dynamic" then
@@ -172,7 +172,7 @@ end
 ---@param provider string? Defaults to current session provider
 ---@return string[]
 function M.get_models_for_provider(provider)
-    provider = provider or state.session.provider
+    provider = provider or state.session.providers
     return state.config.providers[provider] or {}
 end
 
@@ -242,9 +242,9 @@ function M.register_model_to_provider(provider)
         end
         if state.register_model(provider, name) then
             bridge.notify(M.config.icons.success .. " Registered " .. name)
-            bridge.ui_select({ "Yes", "No" }, { prompt = "Switch to " .. name .. " now?" }, function(c)
+            bridge.ui_selection({ "Yes", "No" }, { prompt = "Switch to " .. name .. " now?" }, function(c)
                 if c == "Yes" then
-                    state.session.provider = provider
+                    state.session.providers = provider
                     state.session.model = name
                     M.refresh_ui()
                 end
@@ -300,7 +300,7 @@ function M.refresh_ui()
 end
 
 function M.list_models()
-    local current_provider = state.session.provider
+    local current_provider = state.session.providers
     local current_model = state.session.model
 
     local lines = {
@@ -337,7 +337,7 @@ end
 
 -- Remove model from provider
 function M.remove_model()
-    local current_provider = state.session.provider
+    local current_provider = state.session.providers
     local models = M.get_models_for_provider(current_provider)
 
     if #models == 0 then

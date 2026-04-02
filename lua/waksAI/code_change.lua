@@ -1,6 +1,9 @@
-local bridge                = require "waksAI.bridge"
 ---@mod waksAI.inline_ai Inline AI Suggestion Engine
 ---@brief Handles virtual text overlays, diff previews, and buffer modifications.
+
+local bridge                = require("waksAI.bridge")
+local edit                  = require("waksAI.edit")
+local api                   = require('waksAI.api')
 
 ---@class AISuggestion
 ---@field line_num integer The starting line of the suggestion
@@ -25,9 +28,9 @@ InlineAI.current_buf        = nil
 ---@type string|nil Active session identifier
 InlineAI.current_session_id = nil
 
-local api                   = require('waksAI.api')
-
 --- UI
+
+--- @exported-api's: reject_current, accept_current, prev_suggestion, next_suggestion, get_suggestions_for_selection
 
 --- Configures the aesthetics for the inline diffs
 function InlineAI:setup_highlights()
@@ -45,6 +48,7 @@ end
 
 --- LOGIC AND API
 
+--- @note(waks-work): Should have one consistent api system for this like with the waksAI.api for consistency
 --- Generates a unique ID for database persistence
 ---@return string
 function InlineAI:generate_session_id()
@@ -53,22 +57,24 @@ end
 
 ---Triggered by user to fetch suggestions for the current line or visual selection
 function InlineAI:get_suggestions_for_selection()
-    local buf               = bridge.get_current_buffer()
-    self.current_buf        = buf
+    self.current_buf        = bridge.get_current_buffer()
     self.current_session_id = self:generate_session_id()
 
+    --- @note(waks-work): should use just one global get current selection instead of many mini or local ones for consistency
+    --- local selection = bridge.get_current_selection()
     local selection         = self:get_current_selection()
     if not selection or selection == "" then
         bridge.notify("No text selected for AI suggestions", bridge.get_log_level("warn"))
         return
     end
-
     bridge.notify("Getting AI suggestions...", bridge.get_log_level("info"))
 
-    --- local table = { filetype = vim.bo.filetype, lines = vim.fn.line('$') }
     -- Record activity to Rust backend
     api.record_activity(self.current_session_id, "get_suggestions",
         bridge.json_encode({ filetype = bridge.get_buffer_filetype(), lines = bridge.line('$') }))
+
+    --- @note(waks-work): should actually be instead:
+    --- api.generate(selection, function(response) self:process_ai_response(selection, response) end)
     api.generate_with_session(selection, self.current_session_id, --- "ollama", "codellama",
         function(response)
             self:process_ai_response(selection, response)
@@ -100,7 +106,7 @@ function InlineAI:get_current_selection()
             end
         end
     end
-    return bridge.getline('.')
+    return bridge.get_line('.')
 end
 
 --- Orchestrates the conversion of raw AI response to UI suggestions
@@ -149,6 +155,7 @@ function InlineAI:show_suggestions(suggestions_map)
     self.current_buf = self.current_buf or bridge.get_current_bufer()
 
     for line_num, suggestion in pairs(suggestions_map) do
+        --- @sidebar-diff-view: edit.show_diff_and_apply(self.buffer, suggestion)
         self:display_suggestion(line_num, suggestion)
     end
 
@@ -169,7 +176,7 @@ function InlineAI:display_suggestion(line_num, suggestion)
     -- Render the new code as virtual text lines
     for i, ai_line in ipairs(suggestion.ai_lines) do
         local display_line = line_num + i - 2 -- Adjusting for 0-index
-        local virt_lines = { { "➤ " .. ai_line, "AISuggestion" } }
+        local virt_lines = { "➤ " .. ai_line, "AISuggestion" }
         bridge.set_virtual_text(self.current_buf, self.ns, line_num, virt_lines)
     end
 
@@ -185,7 +192,7 @@ function InlineAI:setup_keybinds()
     local opts = { noremap = true, silent = true, buffer = self.current_buf }
 
     bridge.set_keymap('n', '<Leader>aa', function() self:accept_current() end, opts)
-    bridge.set_keymap('n', '<Leader>rr', function() self:reject_current() end, opts)
+    bridge.set_keymap('n', '<Leader>rj', function() self:reject_current() end, opts)
     bridge.set_keymap('n', ']a', function() self:next_suggestion() end, opts)
     bridge.set_keymap('n', '[a', function() self:prev_suggestion() end, opts)
 end
@@ -209,7 +216,7 @@ function InlineAI:accept_current()
     )
 
     -- APPLY BUFFER CHANGE
-    vim.api.nvim_buf_set_lines(
+    bridge.replace_line_range(
         self.current_buf,
         suggestion.line_num - 1,
         suggestion.line_num - 1 + #suggestion.original_lines,

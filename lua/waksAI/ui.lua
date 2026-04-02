@@ -31,60 +31,41 @@ M.config = {
     },
 }
 
--- [[ Was from UI
--- Internal state
--- M.overlay_state = {
---    ns = nil,                 -- Namespace for extmarks
---    current_line = nil,       -- Line number where overlay is shown
---    response_text = "",       -- Accumulated AI response
---    is_thinking = false,      -- Thinking animation active
---    thinking_timer = nil,     -- Timer handle
---    is_collapsed = false,     -- Response collapsed state
---    full_response_lines = {}, -- Full response (for expanding)
---}
--- function M.setup_highlights()
---    bridge.set_highlight("AIThinking", { fg = "#7f849c", italic = true })
---    bridge.set_highlight("AIOverlay", { fg = "#89b4fa", italic = true })
---    bridge.set_highlight("AIOverlayCode", { fg = "#cba6f7", bg = "#181825" })
---    bridge.set_highlight("AIAction", { fg = "#a6e3a1", bold = true })
--- end
+--- @note(waks-work): check on the use of: bridge.set_highlight(name, opts)
+--- to set a highlight group
 
--- ===================================
 -- INLINE OVERLAY RENDERING
--- ===================================
 
 --- We only need to implement this:
---- [[
----
--- function M.show_collapsed_response()
---    M.overlay_state.is_collapsed = true
---    local summary_lines = {
---        { M.config.overlay_prefix .. "// 🤖 Response [" .. #M.overlay_state.full_response_lines .. " lines]", "AIOverlay" },
---        { M.config.overlay_prefix, "AIOverlay" },
---        { M.config.overlay_prefix .. M.config.icons.collapsed .. " Press → to expand", "AIAction" },
---        { M.config.overlay_prefix, "AIOverlay" },
---        { M.config.overlay_prefix .. "[Tab: Insert] [Esc: Dismiss]", "AIAction" },
---    }
---    M.render_virtual_lines(M.overlay_state.current_line, summary_lines)
--- end
----Expand collapsed response
--- function M.expand_response()
---    if M.overlay_state.is_collapsed then
---        M.overlay_state.is_collapsed = false
---        M.render_virtual_lines(
---            M.overlay_state.current_line,
---            M.overlay_state.full_response_lines
---        )
---    end
--- end
----Collapse expanded response
--- function M.collapse_response()
---    if not M.overlay_state.is_collapsed then
---        M.show_collapsed_response()
---    end
---end
+function M.show_collapsed_response()
+    M.overlay_state.is_collapsed = true
+    local summary_lines = {
+        { M.config.overlay_prefix .. "// 🤖 Response [" .. #M.overlay_state.full_response_lines .. " lines]", "AIOverlay" },
+        { M.config.overlay_prefix, "AIOverlay" },
+        { M.config.overlay_prefix .. M.config.icons.collapsed .. " Press → to expand", "AIAction" },
+        { M.config.overlay_prefix, "AIOverlay" },
+        { M.config.overlay_prefix .. "[Tab: Insert] [Esc: Dismiss]", "AIAction" },
+    }
+    M.render_virtual_lines(M.overlay_state.current_line, summary_lines)
+end
 
---- ]]
+--- Expand collapsed response
+function M.expand_response()
+    if M.overlay_state.is_collapsed then
+        M.overlay_state.is_collapsed = false
+        M.render_virtual_lines(
+            M.overlay_state.current_line,
+            M.overlay_state.full_response_lines
+        )
+    end
+end
+
+--- Collapse expanded response
+function M.collapse_response()
+    if not M.overlay_state.is_collapsed then
+        M.show_collapsed_response()
+    end
+end
 
 ---Renders raw lines as virtual text using extmarks
 ---@param line_num integer The 0-indexed line to attach to
@@ -274,6 +255,15 @@ function M.setup_keymaps()
             M.accept_suggestion()
         end
     end, { desc = "Accept AI suggestion" })
+
+    -- Expand/collapse
+    bridge.set_keymap('n', '<leader>we', function()
+        M.expand_response()
+    end, { desc = "WaksAI: Expand response" })
+
+    bridge.set_keymap('n', '<leader>wc', function()
+        M.collapse_response()
+    end, { desc = "WaksAI: Collapse response" })
 
     -- Dismiss overlay
     bridge.set_keymap('n', '<Esc>', function()

@@ -21,7 +21,7 @@ end
 
 --- Spawns command as a job
 --- @param command string | string[]
---- @param options? table<string, fun(...)>
+--- @param options? table<string, fun(...) | boolean >
 --- @return number
 function M.start_task(command, options)
     return vim.fn.jobstart(command, options)
@@ -183,7 +183,7 @@ function M.json_decode(str)
 end
 
 --- Encodes a json
----@param tbl {filetype?: string, line?: number } | table
+---@param tbl {filetype?: string, line?: number } | table?
 ---@return table
 function M.json_encode(tbl)
     return vim.fn.json_encode(tbl)
@@ -291,7 +291,7 @@ end
 --- Returns the filetype of the current buffer
 ---@return string | nil
 function M.get_buffer_filetype()
-    local file_type = vim.bo.file_type
+    local file_type = vim.bo.filetype
     return file_type
 end
 
@@ -414,7 +414,7 @@ end
 --- @param end_item? boolean | nil
 --- @return string
 function M.get_line(line_num, end_item)
-    local line = vim.fn.get_line(line_num, end_item)
+    local line = vim.fn.getline(line_num, end_item)
     return line
 end
 
@@ -603,7 +603,7 @@ end
 
 --- Prompts the user to pick from a list of items.
 --- @param items table | string[]
---- @param options string | nil
+--- @param options table | string[]
 --- @param on_choice fun(choice: string?, index: number?)
 --- @return nil | string
 function M.ui_selection(items, options, on_choice)

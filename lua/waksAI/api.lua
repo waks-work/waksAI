@@ -12,7 +12,7 @@ local base_url = "http://127.0.0.1:11500"
 ---Generic asynchronous request wrapper
 ---@param method "POST" | "GET"
 ---@param path string
----@param body table?
+---@param body table? |> {file_type: string, line_num: number}
 ---@param callback fun(res: table| nil)
 local function async_request(method, path, body, callback)
     local cmd = {
@@ -26,7 +26,7 @@ local function async_request(method, path, body, callback)
         table.insert(cmd, bridge.json_encode(body))
     end
 
-    --- @note(waks-work): vim.system({cmd}, {opts}, {on_exit})
+    --- @note(waks-work): we can use vim.system({cmd}, {opts}, {on_exit}) instead of jobstart.
     bridge.start_task(cmd, {
         stdout_buffered = true,
         on_stdout = function(_, data)
@@ -37,9 +37,9 @@ local function async_request(method, path, body, callback)
             local ok, res = pcall(bridge.json_decode, table.concat(data, "\n"))
             if ok and callback then callback(ok and res or nil) end
         end,
-        on_stderr = function(_, data)
-            if data and #data > 0 then
-                bridge.notify("API Error: " .. table.concat(data, "\n"), bridge.get_log_level("error"))
+        on_stderr = function(_, data_err)
+            if data_err and #data_err > 0 then
+                bridge.notify("API Error: " .. table.concat(data_err, "\n"), bridge.get_log_level("error"))
             end
         end
     })
@@ -51,16 +51,20 @@ end
 ---@return string
 local function get_api_key()
     local env_key = os.getenv("WAKSAI_API_KEY")
-    if env_key then return env_key end
+    if env_key then
+        return env_key
+    else
+        bridge.notify("No WAKSAI_API_KEY found in the environment variables", bridge.get_log_level("error"))
+    end
 
     local file = io.open(".waksai.json", "r")
     if file then
         local content = file:read("*all")
         file:close()
         return content:match('"api_key":%s*"(.-)"')
+    else
+        bridge.notify("File does not exists : no api key found.")
     end
-
-    return nil
 end
 
 ---Generate AI response with session tracking for the SQLite database
@@ -68,10 +72,9 @@ end
 ---@param session_id string?
 ---@param callback fun(response: string)
 function M.generate_with_session(prompt, session_id, callback)
-    -- 1. Automatically gather code context from Neovim
     local ctx = context.build_request_context(prompt)
 
-    -- 2. Construct the GenerateReq (matches provider.rs)
+    --- Construct the GenerateReq that matches the one in provider.rs backend.
     local req = {
         provider = state.session.provider,
         model = state.session.model,
@@ -95,7 +98,7 @@ function M.generate_with_session(prompt, session_id, callback)
     end)
 end
 
----@note(waks-work): please recheck where it us used and implemented as
+---@note(waks-work): please recheck where it is used and implemented as
 ---it may not be needed any more
 function M.generate(prompt, callback)
     -- Create a unique session ID for this quick request

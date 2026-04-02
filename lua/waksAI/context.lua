@@ -124,7 +124,7 @@ function M.get_surrounding_function()
         end
     end
 
-    --- @fix: bridge.fetch_buffer_contents(start_idx, end_idx, buffer)
+    --- @note(waks-work):
     local lines = bridge.fetch_buffer_content(start_line - 1, end_line, buffer)
     return #lines > 0 and table.concat(lines, "\n") or nil
 end

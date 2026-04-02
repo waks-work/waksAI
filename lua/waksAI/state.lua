@@ -102,7 +102,7 @@ function M.set_provider(provider)
         bridge.notify("Unknown provider: " .. provider, bridge.get_log_level("error"))
         return false
     end
-    M.session.provider = provider
+    M.session.providers = provider
 
     local is_valid_model = false
     for _, model in ipairs(M.config.providers[provider]) do
@@ -128,7 +128,7 @@ end
 ---Cycles to the next available model in the current provider
 ---@return string # The name of the new model
 function M.cycle_model()
-    local list = M.config.providers[M.session.provider] or {}
+    local list = M.config.providers[M.session.providers] or {}
     if #list == 0 then return M.session.model end
 
     -- Fix: Find current index and increment

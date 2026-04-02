@@ -1,0 +1,36 @@
+================================================================                
+                WaksAI Test Suite: Master Checklist
+================================================================
+
+[ BACKEND & LOGIC ] - tests/backend/
+----------------------------------------------------------------
+[ ] BE-01: Markdown Parser - Extracts triple-backtick blocks correctly.
+[ ] BE-02: Markdown Parser - Correctly identifies language tags (lua, rust, etc).
+[ ] BE-03: Session History - Appends 'user' and 'assistant' roles correctly.
+[ ] BE-04: Provider Switching - State updates correctly when switching models.
+[ ] BE-05: Empty Response - System handles null/empty AI replies gracefully.
+[ ] BE-06: Context Truncation - History doesn't exceed max token limits (if implemented).
+
+[ UI & OVERLAY ] - tests/ui/
+----------------------------------------------------------------
+[ ] UI-01: Inline Spinner - Starts on trigger and stops on render_ai_complete.
+[ ] UI-02: Namespace Safety - Extmarks are placed in 'waksai_inline' namespace.
+[ ] UI-03: Ghost Text - Virtual lines appear at the correct 0-indexed line.
+[ ] UI-04: Overlay Cleanup - <Esc> / clear_overlay removes all virtual text.
+[ ] UI-05: Sidebar Render - render_ai_sidebar appends text to the correct buffer.
+[ ] UI-06: Sidebar Actions - Virtual buttons (Apply/Dismiss) render on the right.
+[ ] UI-07: Window Management - toggle_chat correctly handles win_is_valid checks.
+[ ] UI-08: Cursor Sync - Sidebar window auto-scrolls to bottom on new text.
+
+[ INTEGRATION & AGENT ] - (E2E Flows)
+----------------------------------------------------------------
+[ ] INT-01: Accept Suggest - [Tab] extracts ghost text and writes to buffer.
+[ ] INT-02: Visual Explain - Selection is correctly wrapped in prompt context.
+[ ] INT-03: Multi-block - AI response with 2+ code blocks renders multiple actions.
+[ ] INT-04: Buffer Switch - Inline ghost text stays attached to the origin buffer.
+
+[ EDGE CASES ]
+----------------------------------------------------------------
+[ ] EC-01: Large Buffers - Rendering inline at line 10,000+ doesn't lag UI.
+[ ] EC-02: Rapid Fire - Multiple prompts in a row don't create duplicate timers.
+[ ] EC-03: Split Windows - UI opens correctly even with existing splits.

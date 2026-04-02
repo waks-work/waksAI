@@ -171,7 +171,7 @@ function M.keymaps()
     -- Chat UI Controls
     bridge.set_keymap(n, "<leader>ws", M.prompt, { desc = "WaksAI: Send prompt" })
     bridge.set_keymap(v, "<leader>wv", M.explain_visual, { desc = "WaksAI: Explain selection" })
-    bridge.set_keymap(n, "<leader>wc", M.clear_history, { desc = "WaksAI: Clear history" })
+    bridge.set_keymap(n, "<leader>whc", M.clear_history, { desc = "WaksAI: Clear history" })
 
     -- Model & Provider Management (Pickers)
     bridge.set_keymap(n, "<leader>wp", picker.switch_provider, { desc = "WaksAI: Switch provider" })
@@ -180,7 +180,8 @@ function M.keymaps()
 
     -- Inline AI (Ghost Text)
     bridge.set_keymap({ n, v }, "<leader>ai", function()
-        require("waksAI.code_change"):get_suggestions_for_selection()
+        package.loaded['waksAI.code_change'] = nil
+        require("waksAI.code_change"):get_suggestions_for_selection() --- :get_suggestions_for_selection()
     end, { desc = "WaksAI: Inline suggestion" })
 end
 
