@@ -463,7 +463,7 @@ function M.render_ai_sidebar(text, opts)
     else
         table.insert(all_lines, "## " .. M.config.icons.ai .. " waksAI")
         table.insert(all_lines, "")
-        bridge.merge_lists(all_lines, bridge.split_strings(text, "\n", true))
+        bridge.merge_tables(all_lines, bridge.split_strings(text, "\n", true))
         table.insert(all_lines, "")
     end
 
@@ -473,7 +473,7 @@ function M.render_ai_sidebar(text, opts)
     -- Sync cursor to bottom
     if M.sidebar_win and bridge.window_is_valid(M.sidebar_win) then
         local new_count = bridge.get_bline_count(M.sidebar_buf)
-        bridge.set_cursor_position(M.sidebar_win, { row = new_count, col = 0 })
+        bridge.set_cursor_position(M.sidebar_win, { new_count, 0 })
     end
 end
 
@@ -486,14 +486,14 @@ function M.render_user_sidebar(text)
 
     local header = { "", "## " .. M.config.icons.user .. " User", "" }
     local lines = bridge.split_strings(text, "\n", true)
-    local all_lines = bridge.merge_lists(header, lines)
+    local all_lines = bridge.merge_tables(header, lines)
 
     local last_line = bridge.get_bline_count(M.sidebar_buf)
     bridge.replace_line_range(M.sidebar_buf, last_line, last_line, false, all_lines)
 
     if M.sidebar_win and bridge.window_is_valid(M.sidebar_win) then
         local new_count = bridge.get_bline_count(M.sidebar_buf)
-        bridge.set_cursor_position(M.sidebar_win, { row = new_count, col = 0 })
+        bridge.set_cursor_position(M.sidebar_win, { new_count, 0 })
     end
 end
 

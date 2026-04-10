@@ -12,8 +12,7 @@ use tracing::info;
 
 use crate::ai::{
     agent::manager::AgentManager,
-    provider::{GenerateReq, GenerateResp, Message},
-    registry::Provider,
+    provider::{GenerateReq, GenerateResp, Message, Provider},
     session::{Prompt, PromptManager, SessionManager},
     state::AppState,
 };

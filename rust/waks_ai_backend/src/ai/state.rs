@@ -1,20 +1,13 @@
-use reqwest::Client;
+use crate::ai;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::ai::generator;
-use crate::ai::provider::Message;
-use crate::ai::registry::ProviderConfig;
-
-use super::registry::Provider;
-use super::session::{PromptManager, SessionManager};
-
 #[derive(Clone)]
 pub struct AppState {
-    pub sessions: Arc<Mutex<HashMap<String, Vec<Message>>>>,
-    pub client: Client,
-    pub registry: Arc<HashMap<Provider, ProviderConfig>>,
+    pub sessions: Arc<Mutex<HashMap<String, Vec<ai::provider::Message>>>>,
+    pub client: reqwest::Client,
+    pub registry: Arc<HashMap<ai::provider::Provider, ai::registry::ProviderConfig>>,
 }
 
 impl AppState {
@@ -22,8 +15,8 @@ impl AppState {
         &self,
         prompt: String,
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        let session_manager = SessionManager::global().await;
-        let prompt_manager = PromptManager::global().clone();
-        generator::generate_text(self.clone(), session_manager, prompt_manager, prompt).await
+        let session_manager = ai::session::SessionManager::global().await;
+        let prompt_manager = ai::session::PromptManager::global().clone();
+        ai::generator::generate_text(self.clone(), session_manager, prompt_manager, prompt).await
     }
 }

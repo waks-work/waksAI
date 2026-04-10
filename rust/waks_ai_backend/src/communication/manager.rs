@@ -1,15 +1,55 @@
+use crate::{ai, storage};
+use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use super::protocol::{Request, Response};
-use crate::ai::state::AppState;
-use crate::storage::{db, state::StrongHandle};
-use chrono::Utc;
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Request {
+    Generate {
+        prompt: String,
+    },
+    Save {
+        key: String,
+        value: String,
+    },
+    Fetch {
+        key: String,
+    },
 
-// routes frontend requests to AI & Storage.
-pub async fn handle_request(
+    RecordSession {
+        session_id: String,
+        status: String,
+    },
+    RecordResponse {
+        session_id: String,
+        prompt: String,
+        output: String,
+    },
+    RecordFrontendActivity {
+        session_id: String,
+        action: String,
+    },
+    RecordCodeChange {
+        session_id: String,
+        file_path: String,
+        diff: String,
+        commit_message: String,
+    },
+    GetCodeChanges {
+        session_id: String,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Response {
+    Success { data: String },
+    Error { message: String },
+}
+
+pub async fn request_manager(
     req: Request,
-    ai_state: Arc<AppState>,
-    storage: StrongHandle,
+    ai_state: Arc<ai::state::AppState>,
+    storage: storage::state::StrongHandle,
 ) -> Response {
     match req {
         Request::Generate { prompt } => match ai_state.run(prompt).await {
@@ -19,7 +59,6 @@ pub async fn handle_request(
             },
         },
 
-        // storing
         Request::Save { key, value } => {
             storage.set(key.clone(), value.clone()).await;
             Response::Success {
@@ -33,7 +72,7 @@ pub async fn handle_request(
         }
 
         Request::RecordSession { session_id, status } => {
-            let session = db::AiSessionStatus {
+            let session = storage::db::AiSessionStatus {
                 session_id: session_id.clone(),
                 ai_model: "gpt-4o-mini".into(),
                 provider: "openai".into(),
@@ -55,13 +94,12 @@ pub async fn handle_request(
             }
         }
 
-        // structured implementation
         Request::RecordResponse {
             session_id,
             prompt: _,
             output,
         } => {
-            let response = db::AiResponse {
+            let response = storage::db::AiResponse {
                 id: 0,
                 session_id: session_id.clone(),
                 ai_response: output,
@@ -81,7 +119,7 @@ pub async fn handle_request(
         }
 
         Request::RecordFrontendActivity { session_id, action } => {
-            let activity = db::FrontendActivity {
+            let activity = storage::db::FrontendActivity {
                 activity_id: 0,
                 session_id: Some(session_id.clone()),
                 action,
@@ -105,7 +143,7 @@ pub async fn handle_request(
             diff,
             commit_message,
         } => {
-            let change = db::CodeChange {
+            let change = storage::db::CodeChange {
                 code_change_id: 0,
                 session_id: session_id.clone(),
                 file_name: Some(file_path),
@@ -118,7 +156,7 @@ pub async fn handle_request(
 
             match storage.record_code_change(&change).await {
                 Ok(_) => Response::Success {
-                    data: format!("💾 Code change saved for '{}'", session_id),
+                    data: format!("Code change saved for '{}'", session_id),
                 },
                 Err(e) => Response::Error {
                     message: e.to_string(),

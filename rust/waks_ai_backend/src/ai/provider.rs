@@ -2,11 +2,67 @@ use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::registry::Provider;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+pub enum Provider {
+    OpenAi,
+    Mistral,
+    Ollama,
+    OllamaChat,
+    Anthropic,
+    Cohere,
+    HuggingFace,
+}
 
-//---------------------------------
-// Request + Response Types
-//---------------------------------
+impl Provider {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Provider::OpenAi => "openai",
+            Provider::Mistral => "mistral",
+            Provider::Ollama => "ollama",
+            Provider::OllamaChat => "ollama-chat",
+            Provider::Anthropic => "anthropic",
+            Provider::Cohere => "cohere",
+            Provider::HuggingFace => "huggingface",
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Provider {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let deserialized_str = String::deserialize(deserializer)?.to_lowercase();
+        match deserialized_str.as_str() {
+            "openai" => Ok(Provider::OpenAi),
+            "mistral" => Ok(Provider::Mistral),
+            "ollama" => Ok(Provider::Ollama),
+            "ollama-chat" => Ok(Provider::OllamaChat),
+            "anthropic" => Ok(Provider::Anthropic),
+            "cohere" => Ok(Provider::Cohere),
+            "huggingface" => Ok(Provider::HuggingFace),
+            _ => Err(serde::de::Error::custom(format!(
+                "unknown provider: {}",
+                deserialized_str
+            ))),
+        }
+    }
+}
+
+impl std::fmt::Display for Provider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Provider::OpenAi => write!(f, "openai"),
+            Provider::Mistral => write!(f, "mistral"),
+            Provider::Ollama => write!(f, "ollama"),
+            Provider::OllamaChat => write!(f, "ollama-chat"),
+            Provider::Anthropic => write!(f, "anthropic"),
+            Provider::Cohere => write!(f, "cohere"),
+            Provider::HuggingFace => write!(f, "huggingface"),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Message {
     pub role: String,

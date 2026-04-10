@@ -632,8 +632,9 @@ end
 --- Sets the (1, 0)-indexed position in the window
 --- @param window_id number
 --- @param position {row: number, col: number}
+--- @return table
 function M.set_cursor_position(window_id, position)
-    vim.api.nvim_win_set_cursor(window_id, position)
+    return vim.api.nvim_win_set_cursor(window_id, position)
 end
 
 --- @note(waks-work): implement the treesitter logic here.
