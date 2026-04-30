@@ -1,4 +1,4 @@
-use crate::ai::{generator, registry, session, state};
+use crate::ai::{generator, registry, session};
 use axum::{routing::post, Router};
 use reqwest::Client;
 use std::collections::HashMap;
@@ -9,7 +9,6 @@ use tracing::info;
 mod ai;
 mod communication;
 mod storage;
-mod types;
 
 pub async fn run_server() {
     if let Err(e) = storage::db::init().await {
@@ -21,7 +20,7 @@ pub async fn run_server() {
     let _prompt_manager = session::PromptManager::new();
 
     let strong_handle = storage::state::StrongHandle::new();
-    let state = state::AppState {
+    let state = ai::generator::AppState {
         sessions: Arc::new(Mutex::new(HashMap::new())),
         client: Client::new(),
         registry: Arc::new(registry::provider_registry()),

@@ -48,7 +48,7 @@ pub enum Response {
 
 pub async fn request_manager(
     req: Request,
-    ai_state: Arc<ai::state::AppState>,
+    ai_state: Arc<ai::generator::AppState>,
     storage: storage::state::StrongHandle,
 ) -> Response {
     match req {

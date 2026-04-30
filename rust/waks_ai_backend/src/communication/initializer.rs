@@ -22,7 +22,7 @@ pub fn make_channels() -> (
 }
 
 pub async fn communication_channel(
-    ai_state: Arc<ai::state::AppState>,
+    ai_state: Arc<ai::generator::AppState>,
     storage: storage::state::StrongHandle,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let (req_tx, mut req_rx, res_tx, mut res_rx) = make_channels();
@@ -54,7 +54,7 @@ pub async fn communication_channel(
 }
 
 pub async fn initialize_communications(
-    ai_state: Arc<ai::state::AppState>,
+    ai_state: Arc<ai::generator::AppState>,
     storage: storage::state::StrongHandle,
 ) -> AppResult<()> {
     tokio::spawn(async move {

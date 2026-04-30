@@ -1,3 +1,9 @@
+use super::registry::ProviderConfig;
+use crate::ai::{
+    agent::AgentManager,
+    provider::{GenerateReq, GenerateResp, Message, Provider},
+    session::{Prompt, PromptManager, SessionManager},
+};
 use axum::{
     extract::State,
     http::StatusCode,
@@ -8,16 +14,26 @@ use axum::{
 };
 use futures::{Stream, StreamExt};
 use std::{collections::HashMap, convert::Infallible, path::PathBuf, sync::Arc};
+use tokio::sync::Mutex;
 use tracing::info;
 
-use crate::ai::{
-    agent::manager::AgentManager,
-    provider::{GenerateReq, GenerateResp, Message, Provider},
-    session::{Prompt, PromptManager, SessionManager},
-    state::AppState,
-};
+#[derive(Clone)]
+pub struct AppState {
+    pub sessions: Arc<Mutex<HashMap<String, Vec<Message>>>>,
+    pub client: reqwest::Client,
+    pub registry: Arc<HashMap<Provider, ProviderConfig>>,
+}
 
-use super::registry::ProviderConfig;
+impl AppState {
+    pub async fn run(
+        &self,
+        prompt: String,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let session_manager = SessionManager::global().await;
+        let prompt_manager = PromptManager::global().clone();
+        generate_text(self.clone(), session_manager, prompt_manager, prompt).await
+    }
+}
 
 /// [HTTP Request] → [Session Init] → [Agent Activation] → [Execute] → [Persist] → [Response]
 ///

@@ -67,6 +67,53 @@ local function get_api_key()
     end
 end
 
+
+--- Objects to send to the backend and how they are recieved
+--- Also handle the database request from the frontend
+local AiSessionStatus = {
+    session_id = state.session.id,
+    ai_model = state.session.model,
+    provider = state.session.provider,
+    user_prompt = { role = "user", content = {} },
+    system_prompt = { role = "system", content = "Context" },
+    metadata = {},
+    status = {},
+    created_at = {},
+    updated_at = {},
+    --- updated_at and created_at: can be sent empty or i may find how to implement in lua part the datetime
+}
+
+local CodeChange = {
+    --- code_change_id,
+    session_id = state.session.id,
+    file_name = {},
+    previous_code = {},
+    changed_code = {},
+    description = {},
+    backup_path = {},
+    created_at = {},
+}
+
+local FrontendActivity = {
+    activity_id = {},
+    session_id = state.session.id,
+    action = {},
+    payload = {},
+    timestamp = {},
+}
+
+--- what we are to recieve from the ai
+local AiResponse = {
+    --- id = {},
+    session_id = state.session.id,
+    ai_response = {},
+    tokens_used = {},
+    response_time_ms = {}, --- system time feature
+    created_at = {},       --- system time
+}
+
+
+
 ---Generate AI response with session tracking for the SQLite database
 ---@param prompt string The user query
 ---@param session_id string?
